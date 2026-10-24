@@ -3,7 +3,7 @@
 
 namespace spatial {
 void Camera::orbit(float yaw_delta, float pitch_delta) {
-    duration_=elapsed_=0;
+    if (moving()) return; // Finish navigation before accepting orbit input.
     current_.yaw=std::clamp(current_.yaw+yaw_delta,-max_yaw,max_yaw);
     current_.pitch=std::clamp(current_.pitch+pitch_delta,min_pitch,max_pitch);
 }

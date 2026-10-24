@@ -67,7 +67,8 @@ link because the container lacks `libasan_preinit.o` and `libasan`.
 - Animate navigation checkbox: enable/disable subsequent transitions
 - Escape or window close: quit
 
-Orbit and zoom interrupt camera animation at its current state. Transitions
+Orbit input is ignored while a camera transition is active and resumes normally
+after arrival. Zoom interrupts camera animation at its current state. Transitions
 last 0.4 seconds with smoothstep easing. Roll is fixed; there is no free flight.
 
 ## Structure

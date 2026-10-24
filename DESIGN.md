@@ -940,6 +940,7 @@ Add:
 - mock file types
 - mock series
 - mock large directory
+- mock several layers of nested directories
 
 Implement:
 

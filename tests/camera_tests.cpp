@@ -34,13 +34,24 @@ int main() {
     check(!camera.moving() && near(camera.state().focus.x,-4),"Transition finishes at target");
     camera.focus({4,0,0});
     camera.update(0.1f);
-    camera.orbit(0.1f,0);
-    const float interrupted=camera.state().focus.x;
+    const auto before_orbit=camera.state();
+    camera.orbit(0,0); // A right-button drag may begin with no movement.
+    camera.orbit(0.1f,0.2f);
+    check(camera.moving() && near(camera.state().focus.x,before_orbit.focus.x) &&
+        near(camera.state().yaw,before_orbit.yaw) && near(camera.state().pitch,before_orbit.pitch),
+        "Orbit input leaves active transition unchanged");
     camera.update(1);
-    check(!camera.moving() && near(camera.state().focus.x,interrupted),"Orbit interrupts transition");
+    check(!camera.moving() && near(camera.state().focus.x,4) && near(camera.state().yaw,0),
+        "Transition reaches destination despite orbit input");
+    camera.orbit(0.1f,0.2f);
+    check(near(camera.state().yaw,0.1f) && near(camera.state().pitch,0.75f),
+        "Orbit works after transition finishes");
     camera.focus({4,0,0}); camera.zoom(1);
     check(!camera.moving(),"Zoom interrupts transition");
-    camera.reset(); camera.update(1);
+    camera.reset();
+    camera.orbit(0.4f,0.4f);
+    check(camera.moving(),"Reset transition takes priority over orbit");
+    camera.update(1);
     check(near(camera.state().focus.x,0) && near(camera.state().distance,18),"Reset returns to overview");
     Camera a,b;
     a.focus({4,0,-3}); b.focus({4,0,-3});
