@@ -23,7 +23,7 @@ GLuint shader(GLenum type,const char* source) {
     return id;
 }
 }
-Renderer::Renderer(std::span<const SceneBox> boxes) {
+Renderer::Renderer(std::span<const SceneBox> boxes,Vec3 grid_origin) {
     GLuint vertex=0, fragment=0;
     try {
         vertex=shader(GL_VERTEX_SHADER,R"(#version 330 core
@@ -52,33 +52,9 @@ void main() { pixel=vec4(tint,1.0); }
         glDeleteShader(vertex); vertex=0;
         glDeleteShader(fragment); fragment=0;
         matrix_location_=glGetUniformLocation(program_,"view_projection");
-        std::vector<Vertex> vertices;
-        const auto line=[&](Vec3 a,Vec3 b,Vec3 color) {
-            vertices.push_back({a,color}); vertices.push_back({b,color});
-        };
-        for (int i=-14;i<=14;++i) {
-            const float f=static_cast<float>(i);
-            line({f,-0.02f,-14},{f,-0.02f,14},{0.09f,0.18f,0.20f});
-            line({-14,-0.02f,f},{14,-0.02f,f},{0.09f,0.18f,0.20f});
-        }
-        constexpr int edges[][2]={{0,1},{1,3},{3,2},{2,0},{4,5},{5,7},
-                                  {7,6},{6,4},{0,4},{1,5},{2,6},{3,7}};
-        for (const auto& box:boxes) {
-            Vec3 corners[8];
-            for (int i=0;i<8;++i)
-                corners[i]=box.center+Vec3{(i&1 ? 0.5f:-0.5f)*box.size.x,
-                    (i&2 ? 0.5f:-0.5f)*box.size.y,(i&4 ? 0.5f:-0.5f)*box.size.z};
-            for (const auto& edge:edges) line(corners[edge[0]],corners[edge[1]],box.color);
-        }
-        vertex_count_=static_cast<int>(vertices.size());
-        glGenVertexArrays(1,&vao_); glBindVertexArray(vao_);
-        glGenBuffers(1,&buffer_); glBindBuffer(GL_ARRAY_BUFFER,buffer_);
-        glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(Vertex)),vertices.data(),GL_STATIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),nullptr);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<void*>(sizeof(Vec3)));
-        glBindVertexArray(0);
+        glGenVertexArrays(1,&vao_);
+        glGenBuffers(1,&buffer_);
+        set_scene(boxes,grid_origin);
     } catch (...) {
         if (vertex) glDeleteShader(vertex);
         if (fragment) glDeleteShader(fragment);
@@ -86,15 +62,44 @@ void main() { pixel=vec4(tint,1.0); }
         throw;
     }
 }
+void Renderer::set_scene(std::span<const SceneBox> boxes,Vec3 grid_origin) {
+    std::vector<Vertex> vertices;
+    const auto line=[&](Vec3 a,Vec3 b,Vec3 color) {
+        vertices.push_back({a,color}); vertices.push_back({b,color});
+    };
+    for (int i=-14;i<=14;++i) {
+        const float f=static_cast<float>(i);
+        line(grid_origin+Vec3{f,-0.02f,-14},grid_origin+Vec3{f,-0.02f,14},{0.09f,0.18f,0.20f});
+        line(grid_origin+Vec3{-14,-0.02f,f},grid_origin+Vec3{14,-0.02f,f},{0.09f,0.18f,0.20f});
+    }
+    constexpr int edges[][2]={{0,1},{1,3},{3,2},{2,0},{4,5},{5,7},
+                              {7,6},{6,4},{0,4},{1,5},{2,6},{3,7}};
+    for (const auto& box:boxes) {
+        Vec3 corners[8];
+        for (int i=0;i<8;++i)
+            corners[i]=box.center+Vec3{(i&1 ? 0.5f:-0.5f)*box.size.x,
+                (i&2 ? 0.5f:-0.5f)*box.size.y,(i&4 ? 0.5f:-0.5f)*box.size.z};
+        for (const auto& edge:edges) line(corners[edge[0]],corners[edge[1]],box.color);
+    }
+    vertex_count_=static_cast<int>(vertices.size());
+    glBindVertexArray(vao_);
+    glBindBuffer(GL_ARRAY_BUFFER,buffer_);
+    glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(Vertex)),vertices.data(),GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),nullptr);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<void*>(sizeof(Vec3)));
+    glBindVertexArray(0);
+}
 void Renderer::release() {
     if (buffer_) glDeleteBuffers(1,&buffer_);
     if (vao_) glDeleteVertexArrays(1,&vao_);
     if (program_) glDeleteProgram(program_);
 }
 Renderer::~Renderer() { release(); }
-void Renderer::draw(const Camera& camera,int width,int height) const {
+void Renderer::draw(const Camera& camera,int width,int height,int left) const {
     if (width<=0 || height<=0) return;
-    glViewport(0,0,width,height);
+    glViewport(left,0,width,height);
     glClearColor(0.018f,0.027f,0.040f,1);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);

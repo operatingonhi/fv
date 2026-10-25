@@ -1,5 +1,4 @@
 #include "graphics/camera.hpp"
-#include "navigation/navigation.hpp"
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -71,10 +70,9 @@ int main() {
         check(std::isfinite(value),"Finite matrix at orbit limits");
     const auto eye=camera.eye();
     check(near(std::sqrt(dot(eye-focus,eye-focus)),camera.state().distance),"Eye stays on orbit radius");
-    Navigation navigation;
-    navigation.focus_next();
-    check(navigation.selected()==1,"Next mock directory");
-    navigation.focus_next();
-    check(navigation.selected()==0,"Mock focus wraps");
-    std::cout<<"Camera and mock navigation tests passed\n";
+    camera.focus({},false,1000);
+    check(near(camera.state().distance,Camera::max_distance),"Requested focus distance has upper bound");
+    camera.focus({},false,0);
+    check(near(camera.state().distance,Camera::min_distance),"Requested focus distance has lower bound");
+    std::cout<<"Camera tests passed\n";
 }

@@ -3,7 +3,8 @@
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_opengl3.h>
-#include "app/mock_scene.hpp"
+#include "app/browser.hpp"
+#include "graphics/picking.hpp"
 #include "graphics/renderer.hpp"
 #include "navigation/navigation.hpp"
 #include "ui/overlay.hpp"
@@ -32,14 +33,14 @@ struct Runtime {
         if (sdl) SDL_Quit();
     }
 };
-void check_frame(int width,int height,const char* capture) {
+void check_frame(int width,int height,int left,const char* capture) {
     std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3);
     glPixelStorei(GL_PACK_ALIGNMENT,1);
     glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());
     // Look below the overlay for bright geometry, not just ImGui text.
     bool geometry=false;
     for (int y=0;y<height/2;++y)
-        for (int x=0;x<width;++x) {
+        for (int x=left;x<width;++x) {
             const auto p=(static_cast<std::size_t>(y)*width+x)*3;
             if (pixels[p+2]>100) geometry=true;
         }
@@ -77,9 +78,10 @@ int main(int argc,char** argv) {
         require(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE)==0,"Set core profile");
         require(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1)==0,"Set double buffering");
         require(SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,24)==0,"Set depth buffer");
-        runtime.window=SDL_CreateWindow("Spatial navigator - Milestone 1",SDL_WINDOWPOS_CENTERED,
+        runtime.window=SDL_CreateWindow("Spatial navigator - Milestone 2",SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,1100,720,SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
         require(runtime.window!=nullptr,"Create window");
+        SDL_SetWindowMinimumSize(runtime.window,720,480);
         runtime.context=SDL_GL_CreateContext(runtime.window);
         require(runtime.context!=nullptr,"Create OpenGL 3.3 core context");
         if (SDL_GL_SetSwapInterval(1)!=0)
@@ -93,16 +95,27 @@ int main(int argc,char** argv) {
         runtime.platform=true;
         require(ImGui_ImplOpenGL3_Init("#version 330 core"),"Initialize ImGui OpenGL backend");
         runtime.renderer=true;
-        spatial::Renderer renderer(spatial::mock_boxes);
-        spatial::Camera camera;
-        spatial::Navigation navigation;
-        bool running=true, animations=true, smoke_checked=false;
+        spatial::Browser browser;
+        spatial::Renderer renderer(browser.scene.boxes,browser.scene.grid_origin);
+        bool running=true, smoke_checked=false;
+        std::optional<std::size_t> click_target;
+        const auto act=[&](spatial::UiAction action) {
+            if (action.kind==spatial::ActionKind::None) return;
+            if (action.kind!=spatial::ActionKind::Focus) click_target.reset();
+            const auto revision=browser.scene_revision;
+            browser.act(action);
+            if (browser.scene_revision!=revision)
+                renderer.set_scene(browser.scene.boxes,browser.scene.grid_origin);
+        };
         Uint64 previous=SDL_GetPerformanceCounter();
         unsigned frames=0;
         while (running) {
             const Uint64 frame_start=SDL_GetPerformanceCounter();
             const float dt=static_cast<float>(static_cast<double>(frame_start-previous)/SDL_GetPerformanceFrequency());
             previous=frame_start;
+            int logical_width=0,logical_height=0;
+            SDL_GetWindowSize(runtime.window,&logical_width,&logical_height);
+            const int panel_width=std::min(320,logical_width/2);
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
                 ImGui_ImplSDL2_ProcessEvent(&event);
@@ -112,38 +125,66 @@ int main(int argc,char** argv) {
                 if (event.type==SDL_KEYDOWN && !event.key.repeat && !io.WantCaptureKeyboard) {
                     switch (event.key.keysym.sym) {
                     case SDLK_ESCAPE: running=false; break;
-                    case SDLK_r: camera.reset(animations); break;
-                    case SDLK_TAB: camera.focus(navigation.focus_next(),animations); break;
+                    case SDLK_r: act({spatial::ActionKind::Reset}); break;
+                    case SDLK_TAB:
+                        if (!browser.layout.objects.empty())
+                            act({spatial::ActionKind::Focus,(browser.navigation.selected()+1)%browser.layout.objects.size()});
+                        break;
+                    case SDLK_f: act({spatial::ActionKind::Focus,browser.navigation.selected()}); break;
+                    case SDLK_RETURN: act({spatial::ActionKind::Open,browser.navigation.selected()}); break;
+                    case SDLK_BACKSPACE: act({spatial::ActionKind::Up}); break;
+                    case SDLK_PAGEUP: act({spatial::ActionKind::PreviousPage}); break;
+                    case SDLK_PAGEDOWN: act({spatial::ActionKind::NextPage}); break;
                     default: break;
                     }
                 }
                 if (!io.WantCaptureMouse) {
+                    if (event.type==SDL_MOUSEBUTTONDOWN && event.button.button==SDL_BUTTON_LEFT) {
+                        // Keep the first click's identity while its focus animation moves the scene.
+                        if (event.button.clicks>=2 && click_target) {
+                            act({spatial::ActionKind::Open,*click_target});
+                        } else {
+                            click_target=spatial::pick(browser.scene.targets,browser.camera,
+                                static_cast<float>(event.button.x-panel_width),static_cast<float>(event.button.y),
+                                static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height));
+                            if (click_target) act({spatial::ActionKind::Focus,*click_target});
+                        }
+                    }
                     if (event.type==SDL_MOUSEMOTION && (event.motion.state&SDL_BUTTON_RMASK))
-                        camera.orbit(-event.motion.xrel*0.005f,event.motion.yrel*0.005f);
+                        browser.camera.orbit(-event.motion.xrel*0.005f,event.motion.yrel*0.005f);
                     if (event.type==SDL_MOUSEWHEEL)
-                        camera.zoom(event.wheel.preciseY*(event.wheel.direction==SDL_MOUSEWHEEL_FLIPPED ? -1.0f:1.0f));
+                        browser.camera.zoom(event.wheel.preciseY*(event.wheel.direction==SDL_MOUSEWHEEL_FLIPPED ? -1.0f:1.0f));
                 }
             }
             if (!running) break;
             if (smoke) {
-                if (frames==5) camera.focus(navigation.focus_next());
-                if (frames==35) { camera.orbit(0.1f,0.05f); camera.zoom(1); }
+                if (frames==5) {
+                    for (std::size_t i=0;i<browser.layout.objects.size();++i)
+                        if (browser.layout.objects[i].item.category==spatial::Category::Directory) {
+                            act({spatial::ActionKind::Open,i}); break;
+                        }
+                }
+                if (frames==35) { browser.camera.orbit(0.1f,0.05f); browser.camera.zoom(1); }
                 if (frames==40) SDL_SetWindowSize(runtime.window,960,640);
-                if (frames==50) camera.reset();
+                if (frames==50) { act({spatial::ActionKind::Up}); act({spatial::ActionKind::Reset}); }
             }
-            camera.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
+            browser.camera.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
             int width=0,height=0;
             SDL_GL_GetDrawableSize(runtime.window,&width,&height);
             if (width>0 && height>0 && !(SDL_GetWindowFlags(runtime.window)&SDL_WINDOW_MINIMIZED)) {
                 ImGui_ImplOpenGL3_NewFrame();
                 ImGui_ImplSDL2_NewFrame();
                 ImGui::NewFrame();
-                spatial::overlay(navigation,camera,animations);
+                act(spatial::overlay(browser.filesystem,browser.navigation,browser.layout,
+                    browser.camera,browser.animations,static_cast<float>(panel_width)));
+                spatial::scene_labels(browser.scene,browser.camera,static_cast<float>(panel_width),
+                    static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height));
                 ImGui::Render();
-                renderer.draw(camera,width,height);
+                const int drawable_left=width*panel_width/logical_width;
+                renderer.draw(browser.camera,width-drawable_left,height,drawable_left);
                 ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
                 if (smoke && frames==89) {
-                    check_frame(width,height,capture);
+                    check_frame(width,height,drawable_left,capture);
                     smoke_checked=true;
                 }
                 SDL_GL_SwapWindow(runtime.window);

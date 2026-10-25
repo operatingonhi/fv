@@ -18,10 +18,10 @@ void Camera::transition(CameraState target, bool animate) {
     duration_=animate ? 0.4f : 0.0f;
     if (!animate) current_=target;
 }
-void Camera::focus(Vec3 target, bool animate) {
+void Camera::focus(Vec3 target, bool animate, float distance) {
     CameraState next;
     next.focus=target;
-    next.distance=13;
+    next.distance=std::clamp(distance,min_distance,max_distance);
     transition(next,animate);
 }
 void Camera::reset(bool animate) { transition(CameraState{},animate); }

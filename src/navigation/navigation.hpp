@@ -1,16 +1,29 @@
 #pragma once
-#include "app/mock_scene.hpp"
-#include <cstddef>
+#include "analysis/analysis.hpp"
+#include <optional>
 
 namespace spatial {
-// Navigation exposes a semantic focus request; camera interpolation lives elsewhere.
+struct GroupView { std::string label; std::vector<EntryId> members; };
+struct NavigationContext {
+    EntryId directory=root_id;
+    std::optional<GroupView> group;
+    std::size_t selected=0, page=0;
+};
+// Semantic state only: no layout coordinates, camera, ImGui, or OpenGL.
 class Navigation {
 public:
-    std::size_t selected() const { return selected_; }
-    const MockDirectory& directory() const { return directories[selected_]; }
-    Vec3 focus_next() { selected_=(selected_+1)%directories.size(); return directory().center; }
-    Vec3 focus(std::size_t index) { selected_=index%directories.size(); return directory().center; }
+    const NavigationContext& context() const { return current_; }
+    std::size_t selected() const { return current_.selected; }
+    std::vector<EntryId> entries(const MockFilesystem& fs) const;
+    std::string path(const MockFilesystem& fs) const;
+    void select(std::size_t index,std::size_t count);
+    void next(std::size_t count);
+    void page(int delta,std::size_t count);
+    bool open(const MockFilesystem& fs,const Item& item);
+    bool up();
+    bool can_go_up() const { return !parents_.empty(); }
 private:
-    std::size_t selected_=0;
+    NavigationContext current_;
+    std::vector<NavigationContext> parents_;
 };
 }
