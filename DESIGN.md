@@ -963,7 +963,6 @@ Important interactions should eventually include:
 - open terminal at location
 - reveal hidden items
 - toggle visual summaries
-- toggle conventional list view
 
 Keyboard-first use should be practical.
 
@@ -1467,7 +1466,6 @@ Add:
 - navigation history
 - metadata inspector
 - open terminal here
-- conventional list view
 - keyboard navigation
 
 At this point the program should begin functioning as a practical file browser.

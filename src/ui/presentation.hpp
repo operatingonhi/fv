@@ -2,17 +2,21 @@
 #include "layout/hierarchy.hpp"
 #include "graphics/camera.hpp"
 #include "graphics/scene.hpp"
+#include <unordered_map>
 
 namespace spatial {
 Vec3 semantic_color(Category category);
 struct SceneLabel { Vec3 anchor,color; std::string text; bool visible,selected; float extent=1; };
+struct ObjectAppearance { float brightness=1; bool selectable=true, labels=true, force_detail=false; };
+using AppearanceMap=std::unordered_map<NodeId,std::vector<ObjectAppearance>>;
 struct Presentation {
     Vec3 grid_origin{};
     std::vector<SceneBox> boxes, targets;
     std::vector<SceneLabel> labels;
+    std::vector<unsigned char> interactive,drawn;
 };
 // Geometry LOD depends on apparent world scale, not which directory was activated.
 void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<unsigned char>& result,std::span<const unsigned char> previous={});
 Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selected,
-    std::span<const unsigned char> levels);
+    std::span<const unsigned char> levels,const AppearanceMap& appearance={});
 }

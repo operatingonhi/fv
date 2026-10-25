@@ -13,7 +13,7 @@ std::optional<ScreenPoint> project(Vec3 p,const Mat4& m,float width,float height
     return ScreenPoint{(x+1)*width/2,(1-y)*height/2,z};
 }
 std::optional<std::size_t> pick(std::span<const SceneBox> boxes,const Camera& camera,
-    float x,float y,float width,float height) {
+    float x,float y,float width,float height,std::span<const unsigned char> enabled) {
     if (width<=0 || height<=0 || x<0 || y<0 || x>=width || y>=height) return {};
     const auto eye=camera.eye(), forward=normalized(camera.state().focus-eye);
     const auto right=normalized(cross(forward,{0,1,0})), up=cross(right,forward);
@@ -23,6 +23,7 @@ std::optional<std::size_t> pick(std::span<const SceneBox> boxes,const Camera& ca
     std::optional<std::size_t> hit;
     float closest=std::numeric_limits<float>::infinity();
     for (std::size_t i=0;i<boxes.size();++i) {
+        if (!enabled.empty() && (i>=enabled.size() || !enabled[i])) continue;
         const auto low=boxes[i].center-boxes[i].size*0.5f, high=boxes[i].center+boxes[i].size*0.5f;
         const float origins[]={eye.x,eye.y,eye.z}, dirs[]={direction.x,direction.y,direction.z};
         const float mins[]={low.x,low.y,low.z}, maxs[]={high.x,high.y,high.z};

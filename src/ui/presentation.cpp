@@ -79,7 +79,7 @@ void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<u
     }
 }
 Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selected,
-    std::span<const unsigned char> levels) {
+    std::span<const unsigned char> levels,const AppearanceMap& appearance) {
     Presentation result;
     std::vector<NodeId> ancestors;
     for (auto id=current;id!=no_node;id=hierarchy.node(id).parent) ancestors.push_back(id);
@@ -95,9 +95,15 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
             const bool active=id==current && i==selected;
             const bool on_path=std::find(ancestors.begin(),ancestors.end(),child)!=ancestors.end();
             const auto& object=layout.objects[i];
-            const auto color=semantic_color(object.item.category)*(0.5f+0.5f*object.item.salience);
-            if (id==current) result.targets.push_back({object.center,object.size,color});
-            if (layout.detail_rank[i]>=limit && !active && !on_path) continue;
+            ObjectAppearance style;
+            if (const auto found=appearance.find(id);found!=appearance.end() && i<found->second.size()) style=found->second[i];
+            const auto color=semantic_color(object.item.category)*((0.5f+0.5f*object.item.salience)*style.brightness);
+            const bool draw=layout.detail_rank[i]<limit || active || on_path || style.force_detail;
+            if (id==current) {
+                result.targets.push_back({object.center,object.size,color});
+                result.interactive.push_back(style.selectable); result.drawn.push_back(draw);
+            }
+            if (!draw) continue;
             const bool container=object.item.category==Category::Directory || object.item.group!=GroupKind::None;
             if (container) {
                 const auto transform=compose(node.transform,contained_transform(node.local.objects[i]));
@@ -109,7 +115,7 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
             std::string label=object.item.label;
             if (object.item.group!=GroupKind::None) label+=" ("+std::to_string(object.item.members.size())+")";
             result.labels.push_back({object.center+Vec3{0,object.size.y/2+0.2f*node.transform.scale,0},
-                active ? Vec3{1,0.95f,0.5f}:color,std::move(label),layout.detail_rank[i]<7 || active || container,active,object.size.x});
+                active ? Vec3{1,0.95f,0.5f}:color,std::move(label),style.labels && (layout.detail_rank[i]<7 || active || container || style.force_detail),active,object.size.x});
         }
     };
     visit(visit,0);

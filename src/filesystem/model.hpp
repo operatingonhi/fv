@@ -44,6 +44,7 @@ public:
     std::size_t size() const { return entries_.size(); }
     const DirectoryState& state(EntryId id) const { return states_.at(id); }
     void mark_loading(EntryId id) { states_.at(id).loading=true; }
+    void clear_loading() { for (auto& state:states_) state.loading=false; }
     void apply(EntryId directory,DirectoryListing listing);
 private:
     std::vector<Entry> entries_;

@@ -66,21 +66,48 @@ DirectoryListing read_directory(const fs::path& path,std::size_t limit,std::stop
     std::sort(result.entries.begin(),result.entries.end(),[](const Entry& a,const Entry& b) { return a.name<b.name; });
     return result;
 }
+PathValidation validate_path(const fs::path& path,bool directory_only) {
+    PathValidation result;
+    std::error_code ec;
+    result.resolved=fs::canonical(path,ec);
+    if (ec) { result.error="Resolve path: "+ec.message(); return result; }
+    result.metadata=read_metadata(result.resolved);
+    if (!result.metadata.error.empty()) { result.error=result.metadata.error; return result; }
+    if (result.metadata.kind==EntryKind::Directory) {
+        fs::directory_iterator probe(result.resolved,ec);
+        if (ec) result.error="Read directory: "+ec.message();
+    } else if (directory_only) result.error="Path is not a directory";
+    else if (result.metadata.kind!=EntryKind::File) result.error="Path is not a regular file or directory";
+    return result;
+}
 DirectoryLoader::DirectoryLoader():worker_([this](std::stop_token stop) { run(stop); }) {}
 DirectoryLoader::~DirectoryLoader() { worker_.request_stop(); wake_.notify_all(); }
-void DirectoryLoader::request(EntryId directory,fs::path path,std::size_t limit) {
+void DirectoryLoader::request(EntryId directory,fs::path path,std::size_t limit,std::size_t generation) {
     std::lock_guard lock(mutex_);
-    for (auto it=requests_.begin();it!=requests_.end();++it) if (it->directory==directory) {
+    for (auto it=requests_.begin();it!=requests_.end();++it) if (!it->validation && it->directory==directory && it->generation==generation) {
         if (limit==0) {
             auto request=std::move(*it); request.limit=0;
             requests_.erase(it); requests_.push_front(std::move(request)); wake_.notify_one();
         }
         return;
     }
-    Request request{directory,std::move(path),limit};
+    Request request{directory,std::move(path),limit,generation};
     if (limit==0) requests_.push_front(std::move(request));
     else requests_.push_back(std::move(request));
     wake_.notify_one();
+}
+void DirectoryLoader::validate(std::size_t tag,fs::path path,bool directory_only) {
+    std::lock_guard lock(mutex_);
+    Request request{0,std::move(path),0}; request.validation=true; request.tag=tag; request.directory_only=directory_only;
+    requests_.push_front(std::move(request)); wake_.notify_one();
+}
+std::vector<PathValidation> DirectoryLoader::poll_validations() {
+    std::lock_guard lock(mutex_);
+    std::vector<PathValidation> result; result.swap(validations_); return result;
+}
+void DirectoryLoader::discard_reads_except(std::size_t generation) {
+    std::lock_guard lock(mutex_);
+    std::erase_if(requests_,[&](const Request& request) { return !request.validation && request.generation!=generation; });
 }
 std::vector<LoadResult> DirectoryLoader::poll() {
     std::lock_guard lock(mutex_);
@@ -96,12 +123,20 @@ void DirectoryLoader::run(std::stop_token stop) {
             if (!wake_.wait(lock,stop,[&] { return !requests_.empty(); })) return;
             request=std::move(requests_.front()); requests_.pop_front();
         }
+        if (request.validation) {
+            PathValidation validation;
+            try { validation=validate_path(request.path,request.directory_only); }
+            catch (const std::exception& exception) { validation.error=exception.what(); }
+            validation.tag=request.tag;
+            if (stop.stop_requested()) return;
+            std::lock_guard lock(mutex_); validations_.push_back(std::move(validation)); continue;
+        }
         DirectoryListing listing;
         try { listing=read_directory(request.path,request.limit,stop); }
         catch (const std::exception& exception) { listing.error=exception.what(); }
         if (stop.stop_requested()) return;
         std::lock_guard lock(mutex_);
-        results_.push_back({request.directory,std::move(listing),request.limit});
+        results_.push_back({request.directory,std::move(listing),request.limit,request.generation});
     }
 }
 }

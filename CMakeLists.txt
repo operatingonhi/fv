@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(spatial_navigator VERSION 0.4.0 LANGUAGES CXX)
+project(spatial_navigator VERSION 0.5.0 LANGUAGES CXX)
 
 find_package(SDL2 REQUIRED CONFIG)
 find_package(OpenGL REQUIRED)
@@ -12,6 +12,7 @@ add_library(imgui STATIC
     third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp
     third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/misc/cpp/imgui_stdlib.cpp
     third_party/imgui/backends/imgui_impl_sdl2.cpp
     third_party/imgui/backends/imgui_impl_opengl3.cpp)
 target_include_directories(imgui PUBLIC third_party/imgui third_party/imgui/backends)
@@ -23,9 +24,10 @@ target_compile_features(camera PUBLIC cxx_std_20)
 target_compile_options(camera PRIVATE -Wall -Wextra -Wpedantic)
 
 add_library(browser STATIC
-    src/filesystem/model.cpp src/filesystem/reader.cpp src/filesystem/mock_filesystem.cpp src/analysis/analysis.cpp
+    src/filesystem/model.cpp src/filesystem/reader.cpp src/filesystem/mock_filesystem.cpp src/analysis/analysis.cpp src/analysis/query.cpp
     src/layout/layout.cpp src/layout/hierarchy.cpp src/navigation/navigation.cpp
-    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp)
+    src/navigation/spatial_selection.cpp src/navigation/path.cpp src/navigation/history.cpp
+    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp src/app/browser_navigation.cpp src/app/desktop.cpp)
 target_link_libraries(browser PUBLIC camera Threads::Threads)
 target_compile_options(browser PRIVATE -Wall -Wextra -Wpedantic)
 
@@ -53,4 +55,9 @@ if(BUILD_TESTING)
     target_link_libraries(analysis-tests PRIVATE browser)
     target_compile_options(analysis-tests PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME salience-grouping-disclosure COMMAND analysis-tests)
+    add_executable(browser-tests tests/browser_tests.cpp)
+    target_link_libraries(browser-tests PRIVATE browser)
+    target_compile_options(browser-tests PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME practical-browser COMMAND browser-tests)
+    set_tests_properties(practical-browser PROPERTIES TIMEOUT 60)
 endif()

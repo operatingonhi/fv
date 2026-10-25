@@ -83,7 +83,7 @@ int main(int argc,char** argv) {
         require(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE)==0,"Set core profile");
         require(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1)==0,"Set double buffering");
         require(SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,24)==0,"Set depth buffer");
-        runtime.window=SDL_CreateWindow("Spatial navigator - Milestone 3",SDL_WINDOWPOS_CENTERED,
+        runtime.window=SDL_CreateWindow("Spatial navigator - Milestone 5",SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,1100,720,SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
         require(runtime.window!=nullptr,"Create window");
         SDL_SetWindowMinimumSize(runtime.window,720,480);
@@ -96,12 +96,15 @@ int main(int argc,char** argv) {
         ImGui::CreateContext(); runtime.imgui=true;
         ImGui::GetIO().IniFilename=nullptr; // No UI persistence. Filesystem reads belong to the background loader.
         ImGui::StyleColorsDark();
+        ImGui::GetIO().ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard;
         require(ImGui_ImplSDL2_InitForOpenGL(runtime.window,runtime.context),"Initialize ImGui SDL2 backend");
         runtime.platform=true;
         require(ImGui_ImplOpenGL3_Init("#version 330 core"),"Initialize ImGui OpenGL backend");
         runtime.renderer=true;
         spatial::Browser browser(start);
         spatial::Renderer renderer(browser.scene.boxes,browser.scene.grid_origin);
+        spatial::OverlayState overlay_state;
+        auto displayed_history=browser.history.current().state;
         bool running=true, smoke_checked=false, smoke_started=!smoke;
         const auto smoke_deadline=SDL_GetTicks64()+30'000;
         std::optional<std::size_t> click_target;
@@ -122,37 +125,72 @@ int main(int argc,char** argv) {
             int logical_width=0,logical_height=0;
             SDL_GetWindowSize(runtime.window,&logical_width,&logical_height);
             const int panel_width=std::min(320,logical_width/2);
+            browser.viewport_width=static_cast<float>(logical_width-panel_width);
+            browser.viewport_height=static_cast<float>(logical_height);
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
-                ImGui_ImplSDL2_ProcessEvent(&event);
                 const auto& io=ImGui::GetIO();
-                if (event.type==SDL_QUIT || (event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_CLOSE))
-                    running=false;
-                if (event.type==SDL_KEYDOWN && !event.key.repeat && !io.WantCaptureKeyboard) {
-                    switch (event.key.keysym.sym) {
-                    case SDLK_r: act({spatial::ActionKind::Reset}); break;
-                    case SDLK_TAB:
-                        if (!browser.layout.objects.empty())
-                            act({spatial::ActionKind::Focus,(browser.navigation.selected()+1)%browser.layout.objects.size()});
-                        break;
-                    case SDLK_f: act({spatial::ActionKind::Focus,browser.navigation.selected()}); break;
-                    case SDLK_RETURN: act({spatial::ActionKind::Open,browser.navigation.selected()}); break;
-                    case SDLK_BACKSPACE: act({spatial::ActionKind::Up}); break;
-                    case SDLK_PAGEUP: act({spatial::ActionKind::PreviousPage}); break;
-                    case SDLK_PAGEDOWN: act({spatial::ActionKind::NextPage}); break;
-                    default: break;
+                if (event.type==SDL_QUIT || (event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_CLOSE)) running=false;
+                bool consumed=false;
+                if (event.type==SDL_KEYDOWN) {
+                    const auto key=event.key.keysym.sym;
+                    const bool ctrl=(event.key.keysym.mod&KMOD_CTRL)!=0, alt=(event.key.keysym.mod&KMOD_ALT)!=0;
+                    const bool shift=(event.key.keysym.mod&KMOD_SHIFT)!=0;
+                    if (!event.key.repeat && ctrl && key==SDLK_l) { overlay_state.focus_path=true; consumed=true; }
+                    else if (!event.key.repeat && ctrl && key==SDLK_f) {
+                        if (shift) overlay_state.open_filters=true; else overlay_state.focus_search=true;
+                        consumed=true;
+                    } else if (!event.key.repeat && ctrl && key==SDLK_i) { overlay_state.inspector=!overlay_state.inspector; consumed=true; }
+                    else if (!event.key.repeat && ctrl && key==SDLK_h) {
+                        spatial::UiAction filter{spatial::ActionKind::Filter}; filter.filter=browser.query().filter;
+                        filter.filter.include_hidden=!filter.filter.include_hidden; act(filter); consumed=true;
+                    } else if (!event.key.repeat && ctrl && shift && key==SDLK_t) { act({spatial::ActionKind::Terminal}); consumed=true; }
+                    else if (!event.key.repeat && alt && key==SDLK_LEFT) { act({spatial::ActionKind::Back}); consumed=true; }
+                    else if (!event.key.repeat && alt && key==SDLK_RIGHT) { act({spatial::ActionKind::Forward}); consumed=true; }
+                    else if (!event.key.repeat && key==SDLK_F3) { act({shift ? spatial::ActionKind::PreviousMatch:spatial::ActionKind::NextMatch}); consumed=true; }
+                    else if (!event.key.repeat && key==SDLK_ESCAPE) {
+                        act({spatial::ActionKind::Cancel}); overlay_state.cancel_edits=true; overlay_state.inspector=false;
+                        overlay_state.focus_path=overlay_state.focus_search=false; // Also let ImGui cancel its active editor/popup.
+                    } else if (!overlay_state.capture_navigation && !ctrl && !alt) {
+                        consumed=true;
+                        switch (key) {
+                        case SDLK_LEFT: act({spatial::ActionKind::Left}); break;
+                        case SDLK_RIGHT: act({spatial::ActionKind::Right}); break;
+                        case SDLK_UP: act({spatial::ActionKind::Above}); break;
+                        case SDLK_DOWN: act({spatial::ActionKind::Below}); break;
+                        default:
+                            if (event.key.repeat) { consumed=false; break; }
+                            switch (key) {
+                            case SDLK_r: act({spatial::ActionKind::Reset}); break;
+                            case SDLK_TAB: act({shift ? spatial::ActionKind::Previous:spatial::ActionKind::Next}); break;
+                            case SDLK_f: act({spatial::ActionKind::Focus,browser.navigation.selected()}); break;
+                            case SDLK_RETURN: act({spatial::ActionKind::Open,browser.navigation.selected()}); break;
+                            case SDLK_BACKSPACE: act({spatial::ActionKind::Up}); break;
+                            case SDLK_PAGEUP: act({spatial::ActionKind::PreviousPage}); break;
+                            case SDLK_PAGEDOWN: act({spatial::ActionKind::NextPage}); break;
+                            case SDLK_HOME:
+                            case SDLK_END:
+                                for (std::size_t n=0;n<browser.layout.objects.size();++n) {
+                                    const auto i=key==SDLK_HOME ? n:browser.layout.objects.size()-1-n;
+                                    if (browser.eligible(browser.layout.objects[i].item)) { act({spatial::ActionKind::Select,i}); break; }
+                                }
+                                break;
+                            default: consumed=false; break;
+                            }
+                        }
                     }
                 }
+                if (!consumed) ImGui_ImplSDL2_ProcessEvent(&event);
                 if (!io.WantCaptureMouse) {
                     if (event.type==SDL_MOUSEBUTTONDOWN && event.button.button==SDL_BUTTON_LEFT) {
                         // Keep the first click's identity while its focus animation moves the scene.
                         if (event.button.clicks>=2 && click_target) {
-                            act({spatial::ActionKind::Open,*click_target});
+                            act({spatial::ActionKind::Open,browser.navigation.selected()});
                         } else {
                             click_target=spatial::pick(browser.scene.targets,browser.camera,
                                 static_cast<float>(event.button.x-panel_width),static_cast<float>(event.button.y),
-                                static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height));
-                            if (click_target) act({spatial::ActionKind::Focus,*click_target});
+                                static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height),browser.scene.interactive);
+                            if (click_target) { act({spatial::ActionKind::Focus,*click_target}); overlay_state.release_focus=true; }
                         }
                     }
                     if (event.type==SDL_MOUSEMOTION && (event.motion.state&SDL_BUTTON_RMASK))
@@ -177,6 +215,7 @@ int main(int argc,char** argv) {
             browser.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
             if (browser.scene_revision!=revision)
                 renderer.set_scene(browser.scene.boxes,browser.scene.grid_origin);
+            if (displayed_history!=browser.history.current().state) { click_target.reset(); displayed_history=browser.history.current().state; }
             if (smoke && !smoke_started) {
                 if (!browser.loading()) {
                     if (browser.filesystem.state(spatial::root_id).state==spatial::LoadState::Error)
@@ -190,8 +229,7 @@ int main(int argc,char** argv) {
                 ImGui_ImplOpenGL3_NewFrame();
                 ImGui_ImplSDL2_NewFrame();
                 ImGui::NewFrame();
-                act(spatial::overlay(browser.filesystem,browser.navigation,browser.layout,
-                    browser.camera,browser.animations,static_cast<float>(panel_width),browser.now(),browser.status,browser.real_filesystem()));
+                act(spatial::overlay(browser,overlay_state,static_cast<float>(panel_width)));
                 spatial::scene_labels(browser.scene,browser.camera,static_cast<float>(panel_width),
                     static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height));
                 ImGui::Render();

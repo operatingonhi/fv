@@ -11,22 +11,33 @@ struct LoadPolicy { std::size_t preview_entries=64, preview_directories=8; };
 Entry read_metadata(const std::filesystem::path& path);
 // One directory only; zero limit means complete enumeration. No recursive walk.
 DirectoryListing read_directory(const std::filesystem::path& path,std::size_t limit=0,std::stop_token stop={});
-struct LoadResult { EntryId directory; DirectoryListing listing; std::size_t limit=0; };
+struct LoadResult { EntryId directory; DirectoryListing listing; std::size_t limit=0; std::size_t generation=0; };
+struct PathValidation {
+    std::size_t tag=0;
+    std::filesystem::path resolved;
+    Entry metadata;
+    std::string error;
+};
+PathValidation validate_path(const std::filesystem::path& path,bool directory_only);
 class DirectoryLoader {
 public:
     DirectoryLoader();
     ~DirectoryLoader();
     DirectoryLoader(const DirectoryLoader&)=delete;
     DirectoryLoader& operator=(const DirectoryLoader&)=delete;
-    void request(EntryId directory,std::filesystem::path path,std::size_t limit);
+    void request(EntryId directory,std::filesystem::path path,std::size_t limit,std::size_t generation=0);
+    void validate(std::size_t tag,std::filesystem::path path,bool directory_only);
+    std::vector<PathValidation> poll_validations();
     std::vector<LoadResult> poll();
+    void discard_reads_except(std::size_t generation);
 private:
-    struct Request { EntryId directory; std::filesystem::path path; std::size_t limit; };
+    struct Request { EntryId directory; std::filesystem::path path; std::size_t limit; std::size_t generation=0, tag=0; bool validation=false, directory_only=false; };
     void run(std::stop_token stop);
     std::mutex mutex_;
     std::condition_variable_any wake_;
     std::deque<Request> requests_;
     std::vector<LoadResult> results_;
+    std::vector<PathValidation> validations_;
     std::jthread worker_;
 };
 }

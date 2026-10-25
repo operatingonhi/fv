@@ -25,6 +25,12 @@ void Camera::focus(Vec3 target, bool animate, float distance, float scale) {
     next.distance=std::clamp(distance,min_distance*next.scale,max_distance*next.scale);
     transition(next,animate);
 }
+void Camera::restore(CameraState state,bool animate) {
+    state.scale=std::max(state.scale,0.000001f);
+    state.distance=std::clamp(state.distance,min_distance*state.scale,max_distance*state.scale);
+    state.yaw=std::clamp(state.yaw,-max_yaw,max_yaw); state.pitch=std::clamp(state.pitch,min_pitch,max_pitch);
+    transition(state,animate);
+}
 void Camera::reset(bool animate) { transition(CameraState{},animate); }
 void Camera::update(float seconds) {
     if (!moving()) return;

@@ -1,9 +1,9 @@
 # Spatial filesystem navigator
 
-Milestone 4 refines deterministic salience, classification, grouping, density
-handling, and progressive disclosure on the accepted real-filesystem integration.
-The nested dioramas, camera/orbit/zoom behavior, semantic geometry/colors, loading
-policy, and controls remain intact. No Milestone 5 functionality is implemented.
+Milestone 5 adds read-only browser actions to the accepted spatial filesystem
+visualization: keyboard selection, desktop file opening, search/filtering, path
+entry, history, metadata inspection, and terminal launching. There is no
+alternative explorer view or destructive file operation.
 
 ## Dependencies on Void Linux
 
@@ -36,12 +36,12 @@ ctest --test-dir build --output-on-failure
 ./build/spatial-navigator ~/projects      # optional starting path
 ```
 
-The selected path is the root of this spatial world. Parent returns through
-entered directories/groups within that tree; navigating above the starting path
-is not implemented. Start with a higher directory if a larger enclosing context
-is needed. A nonexistent, unreadable, or non-directory start displays an error
-status rather than terminating the application. Shell expansion handles `~`.
-An explicitly supplied starting directory may itself be a symlink.
+The selected path starts a cached spatial world. Ordinary parent/child navigation
+zooms through its existing nested geometry. Backspace at the initial root, or
+entry beyond the six-level geometry cap, starts another bounded world; unrelated
+path jumps also use a controlled scene change. Invalid/inaccessible paths report
+status without terminating. Path entry supports absolute paths, paths relative
+to the current directory, and `~`/`~/`; no shell expansion is performed.
 
 An optional GUI smoke test waits for initial filesystem loading, then exercises
 camera motion, directory entry/return, resize, rendering, and normal SDL shutdown:
@@ -76,8 +76,8 @@ The policy is deliberately bounded and explicit:
   when their parent becomes active. Visited metadata and pages are cached.
 - `LoadPolicy` isolates the preview limits; `HierarchyConfig` retains the existing
   three-level visual preview and six-level total geometry nesting cap, counting
-  groups/summaries. Deeper visual rebasing and navigation beyond that cap remain
-  future work. The visual preview depth never causes filesystem traversal.
+  groups/summaries. Navigation beyond that cap starts another bounded world; seamless
+  visual rebasing remains future refinement. The visual preview depth never causes filesystem traversal.
 
 Directory floors and world transforms exist before their contents finish
 loading. Results populate those same dioramas. Existing objects keep their
@@ -102,8 +102,9 @@ bits describe metadata; executable status does not launch or probe the file.
 
 Symlinks have their own kind, cyan color, linked geometry, and target text. Broken,
 cyclic, or inaccessible targets retain a selectable link object with an error.
-Discovered links are not traversed, including directory links, so they cannot
-create traversal cycles. Link size/mtime are left unavailable rather than
+Preview loading never traverses discovered links, so it cannot create traversal
+cycles. Explicit activation resolves and validates a link target, then enters
+its directory or opens its regular file; broken/cyclic targets report errors. Link size/mtime are left unavailable rather than
 presenting target metadata as link metadata. Special files are represented with
 a distinct semantic category and never opened for content.
 
@@ -224,22 +225,73 @@ hold at most 20 objects plus a remainder summary. Far nested content uses reduce
 geometry and labels, with more detail revealed at closer camera scales. Loaded
 counts for partial previews refer only to the known subset.
 
-- Click a scene object/sidebar row: select and animate focus
-- Double-click or Enter: enter a directory or expand a group; regular files only focus
-- Tab: focus next visible object; F: focus selection
-- Backspace or Parent: zoom out and restore enclosing page/selection
-- Page Up / Page Down or arrows: browse dense contexts
-- R or Reset: current-context overview
-- Right-drag in the scene: orbit; wheel: zoom
-- Animate navigation: enable/disable subsequent transitions
-- Window-manager close request: quit; Esc remains unassigned
+- Click a scene object/sidebar row: shared selection and animated focus
+- Arrows: select a drawn eligible object in the requested screen direction; prefer
+  nearby aligned targets, without wrapping or moving the camera
+- Tab / Shift+Tab: focus next / previous eligible object on the page
+- Home / End: select first / last eligible page object; F: focus selection
+- Enter / double-click: enter directory, expand group, or open a regular file
+- Backspace / Parent: enclosing context; Page Up / Down: dense-context pages
+- Alt+Left / Right: history back / forward
+- Ctrl+L: path entry; Ctrl+F: search; F3 / Shift+F3: next / previous match
+- Ctrl+Shift+F: filters; Ctrl+H: toggle hidden entries; Ctrl+I: metadata inspector
+- Ctrl+Shift+T: open terminal here
+- Esc: cancel editors/popups/pending navigation and clear search; never quit
+- R / Reset: overview; right-drag: orbit; wheel: zoom
+- Window-manager close / normal SDL quit: clean shutdown; no custom quit key
 
-Orbit cannot interrupt active transitions; zoom can. No free flight, uncontrolled
-roll, custom quit key, or destructive file operation was added.
+Scene bindings yield to active ImGui editors/popups. Search-field Enter applies
+the query and activates the selected match. Orbit cannot interrupt transitions;
+zoom can. The animation checkbox controls subsequent transitions.
+
+## Read-only browser behavior
+
+Selection belongs to navigation, identified by entry/group identity. Scene,
+sidebar, keyboard, search, and inspector use that same selection. The sidebar is
+the existing spatial object selector, not an alternative file-explorer view.
+
+Search is a case-insensitive literal filename substring over cached entries in
+the current directory/group (all pages), plus up to two cached descendant levels.
+It does not initiate recursive searches or build an index. Incomplete previews
+are indicated. Matching groups/directories retain their spatial context;
+nonmatches dim and become unselectable. F3 cycles matching objects across pages.
+Matched nested contents gain detail within the existing bounded disclosure.
+Filters select files/directories or semantic category and toggle hidden/artifact
+entries. Ancestor directory context remains available for matching descendants.
+Query/filter changes preserve layout coordinates. Esc clears search, while
+filters persist until changed/reset in the Filters popup.
+
+History holds up to 64 directory/group visits, including page, selection, query,
+and useful camera state. Going somewhere new truncates forward history. Cached
+worlds are shared among visits; same-world restoration animates through existing
+geometry. Other worlds restore cached snapshots with a controlled change.
+Targets are validated on the filesystem worker; missing locations report an
+error and are skipped on subsequent history attempts. Snapshots are not live
+refreshes. Path validation shares the existing single worker, and generation
+checks discard stale results after world switches.
+
+The optional floating inspector uses cached filename/path, kind, size, timestamp,
+permissions, executable state, symlink target/errors, semantic classification,
+salience and group details. It does not collect expensive metadata per frame.
+
+Regular-file activation resolves/validates the target asynchronously, then uses
+`xdg-open` with an absolute path as a separate argument. On Void Linux the runtime
+helper is provided by `xdg-utils`. No shell is involved, and the browser does not
+wait for the application to exit. Missing helpers and failed launcher exits
+appear in status. Opening a file delegates to its desktop association.
+
+Terminal command precedence is `FSN_TERMINAL`, then `TERMINAL`, then
+`xdg-terminal-exec` with `xterm` fallback if the default launcher cannot start.
+For example, launch with `FSN_TERMINAL='xterm -fa Monospace'`. Quoted arguments and
+backslash escapes are supported, but shell expansion, pipelines and substitutions
+are not. The child starts in the selected actual directory, otherwise the current
+directory; groups use their containing directory. Process launching is isolated
+in `app/desktop.*`, closes inherited descriptors, and polls exits without blocking.
+No runtime helper is installed automatically.
 
 ## Automated validation
 
-All four suites run without a window or OpenGL context:
+All five suites run without a window or OpenGL context:
 
 - Analysis/disclosure: continuous recency, balanced ranking, generated classification
   and negative cases, numeric/padding/version/size false positives, conservative
@@ -257,40 +309,56 @@ The real suite includes a 600-file miscellaneous directory plus a 621-entry mix
 of 400 recent artifacts, 200 older notes, 20 frames, and important old source.
 It checks coverage, discoverability, bounded pages, and stable positions. Test fixtures are temporary and
 removed by RAII, including restoration of permissions on the unreadable fixture.
-Debug and Release builds and all suites are checked for Milestone 4. The existing
+The practical-browser suite additionally tests directional/shared selection,
+history and stale/deleted targets, path parsing and symlink normalization,
+search/filtering across pages and nested caches, command construction and missing
+launchers. Debug and Release builds and all suites are checked for Milestone 5. The existing
 container lacks the ASan runtime, so sanitizer testing is unavailable.
 
-## Manual X11 verification for Milestone 4
+## Manual X11 verification for Milestone 5
 
-Milestones 1–3 were manually accepted by the user. Milestone 4 GUI behavior has
-not been verified in this execution environment; automated passes do not replace
-these checks. Choose real directories by category rather than assuming any path:
+Milestones 1–4 were manually accepted by the user. Milestone 5 requires manual
+GUI validation: this execution environment cannot connect to X11 and has no
+`xdg-open`, `xdg-terminal-exec`, or `xterm` available for successful launch checks.
 
-| Directory category | What to inspect |
-| --- | --- |
-| Source-code repository | Useful older source/config files remain prominent beside recent binaries/output; dot configs are not excessively dimmed. Check nested previews, focus, parent zoom and return stability. |
-| Build/output directory | Objects, versioned libraries, dependency/cache/temp files stay low priority. Large leftover cohorts form one Build artifacts complex. Expand it and reach individual members; output is deweighted, never lost. |
-| Photo/image directory | Consistently numbered images form compound structures. Wide panels and colors remain familiar. Check that size outliers or inconsistent names do not pull unrelated images into a group. |
-| Numbered sequence directory | Try padded frames, `099`→`100`, unpadded digit-width changes, and middle-token notes. Expand and page: names/order must remain numeric. Version-like names and malformed padding should remain separate or split into coherent runs. |
-| Many miscellaneous files | Check bounded pages, the Other entries summary's highest-omitted explanation, and ranked remainder expansion. Important content must remain discoverable when a partial preview completes. |
-| Session/export outputs | A shared non-numeric family, extension, time window and similar sizes should group; matching time alone, old outliers, unknown times or mixed extensions should not. |
+- Use a source repository for keyboard-only arrows/Tab/Enter/Backspace navigation;
+  compare mouse, sidebar and keyboard selection with the inspector. There is no
+  separate list view to synchronize.
+- Check parent/child zoom continuity, history restoration, orbit, zoom, reset,
+  resizing and nested disclosure after each new navigation method.
+- Open a harmless regular file and a file symlink with a configured desktop
+  association. Check missing helpers, broken links and disappeared files report
+  status while the browser remains responsive.
+- Search a photo/sequence directory: match a member inside a compound structure,
+  move across pages with F3/Shift+F3, try no matches, and cancel with Esc.
+- Filter a build/output directory by category, hidden status and artifacts;
+  inspect dimming, selection eligibility and unchanged layout, then reset filters.
+- Enter absolute, relative and `~/` paths; try nonexistent/inaccessible paths.
+  Test Back/Forward, restored selection/camera/query, a new visit truncating
+  forward history, and a deleted history destination.
+- Inspect files, directories, groups and symlinks: metadata should be legible
+  and the optional inspector should not obscure normal browsing.
+- Open a terminal in a selected directory and in the current directory with a
+  file selected; check its working directory. Try valid and invalid configured
+  terminal commands.
+- Use a large miscellaneous directory to check summaries, paging, search and
+  filtering remain bounded and useful without disrupting established grouping.
+- Check editing fields/popups consume their keys, Esc cancels without quitting,
+  and the window-manager close button/i3 close command shuts down cleanly.
 
-For each category, approach and retreat from nested directories/groups: important
-structures should appear first, then more files and readable labels, with no
-coordinate jumps or scene replacement. Make small orbit/zoom movements near LOD
-boundaries to check flicker/clutter. Revisit and reset without data changes to
-check stable positions. Also verify existing symlink/error status, resizing,
-picking, Esc remaining unassigned, and normal window-manager closing.
+Seamless world-root/depth rebasing, cache eviction/refresh/watchers, Unicode-aware
+search, indexing, profiling, and further visual/performance refinements are
+intentionally deferred. Milestone 6 has not begun.
 
 ## Layer boundaries
 
 - `filesystem/`: cached metadata, isolated real reader/worker, deterministic test fixtures
-- `analysis/`: categories/shapes, explainable salience, artifact evidence, conservative series/related groups
+- `analysis/`: categories/shapes, salience, artifact evidence, series/related groups and cached search/filter matching
 - `layout/`: parent-relative transforms, persistent hierarchy, bounded/ranked summaries, stable slots and disclosure priorities
-- `navigation/`: directory/group contexts, selection, pages, enclosing-context stack
+- `navigation/`: shared selection, directional neighbors, paths, history and directory/group contexts
 - `graphics/`: cached geometry buffers, shaders, camera, projection/picking
 - `ui/`: semantic presentation, labels, metadata/status controls
-- `app/`: source orchestration, loading policy, snapshot application, SDL lifecycle
+- `app/`: source orchestration, view/history snapshots, isolated desktop launching and SDL lifecycle
 
 The runtime always constructs the real source from the command-line path. Mock
 construction remains available only for deterministic regression tests. No new
