@@ -143,12 +143,9 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
             else file_geometry(result.boxes,file_shape(object.item.category),object.center,object.size,color);
             if (active)
                 result.boxes.push_back({object.center,object.size+Vec3{0.12f,0.12f,0.12f}*node.transform.scale,selection_color});
-            // Directory names belong to the current browsing level. Miniature
-            // directories inside its children keep their geometry without titles.
-            if (id!=current && object.item.category==Category::Directory) continue;
-            const bool label_visible=id==current || (style.labels && (active || style.force_detail ||
-                (config.label_limit>0 && levels[id]>0 && (layout.detail_rank[i]<config.label_limit || container))));
-            if (!label_visible) continue;
+            // Only the current browsing level has names. All child/sibling
+            // contents retain geometry, even when search forces full detail.
+            if (id!=current) continue;
             std::string label=display_name(object.item.label)+style.contents_status;
             if (object.item.group!=GroupKind::None) label+=" ("+std::to_string(object.item.members.size())+")";
             result.labels.push_back({object.center+Vec3{0,object.size.y/2+0.2f*node.transform.scale,0},

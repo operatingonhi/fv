@@ -165,7 +165,7 @@ void Browser::rebuild_query() {
         auto& styles=appearances_[id];
         for (const auto& placement:hierarchy.node(id).world.objects) {
             const bool match=!query_.active() || item_matches(placement.item,query_result_);
-            styles.push_back({match ? 1.0f:0.16f,match,match,query_.active() && match});
+            styles.push_back({match ? 1.0f:0.16f,match,query_.active() && match});
             if (loader_ && placement.item.group==GroupKind::None && placement.item.category==Category::Directory) {
                 const auto& state=filesystem.state(placement.item.members.front());
                 if (state.state==LoadState::Error) styles.back().contents_status=" [unavailable]";

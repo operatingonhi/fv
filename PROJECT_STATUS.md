@@ -32,14 +32,14 @@
   retain a shared floor/roof/support structure and ordered addressable members;
   weaker inferred groups use a shared base. Member paging bounds large sequences.
 - Hysteretic, apparent-scale LOD retains major structures and the active path.
-  Distant files simplify and optional nested labels are omitted. Current-directory
+  Distant files simplify; only the current browsing level supplies scene names. Current-directory
   and current-page names are mandatory, independent of LOD/filters/density. Child
   dioramas retain their complete bounded page, including groups/summaries. Loading
   or unavailable contents have markers; confirmed empty directories remain empty.
   Nested traversal is bounded. Idle frames skip LOD and geometry rebuilding. Scene preparation time
   and box/label counts appear in Settings; GPU uploads remain revision-based.
 - Session Settings expose animation enable/duration, orbit/zoom sensitivity,
-  nested label density and nested detail depth. Hidden/artifact controls remain in
+  nested detail depth. Hidden/artifact controls remain in
   Filters. Defaults preserve accepted camera limits, easing and navigation model.
 - Shared selection, cached queries, history, integrated inspector, desktop opening
   and terminal cwd behavior remain. Control bytes are escaped in object rows and
@@ -146,3 +146,21 @@ Parent-context validation: Debug and Release builds passed all six suites;
 `Initialize SDL2: x11 not available`. Visual composition, camera framing, and
 sibling readability at startup and unseen-parent ascents remain for manual X11
 inspection; no GUI verification is claimed here.
+
+
+## Current-level names only
+
+Scene labels are now generated only for entries directly in the current browsing
+context. Files, directories, compound groups, and remainder summaries in nested
+or sibling directories retain geometry without names, regardless of LOD or search
+highlighting. Entering a directory reveals its direct entry names. The fixed CWD
+heading and current-page labels remain mandatory. Removed the obsolete nested
+label-density setting and per-object label override. Tests cover nested files at
+full detail/search highlighting, label promotion on entry, and both files and
+subdirectories in a sibling while preserving their geometry.
+Manual check: enter a directory with populated children and siblings, zoom and
+search; verify only the CWD heading and its immediate entry names are displayed.
+
+Current-level label validation: Debug and Release builds passed all six suites;
+`git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`; visual verification remains manual.

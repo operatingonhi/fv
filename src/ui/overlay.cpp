@@ -171,12 +171,9 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
         ImGui::SliderFloat("Orbit sensitivity",&browser.camera.orbit_sensitivity,0.2f,3.0f);
         ImGui::SliderFloat("Zoom sensitivity",&browser.camera.zoom_sensitivity,0.2f,3.0f);
         int depth=static_cast<int>(browser.presentation_config.nested_depth);
-        int labels=static_cast<int>(browser.presentation_config.label_limit);
         bool changed=ImGui::SliderInt("Nested detail depth",&depth,1,6);
-        changed=ImGui::SliderInt("Nested label density",&labels,0,20) || changed;
         if (changed) {
             browser.presentation_config.nested_depth=static_cast<unsigned>(depth);
-            browser.presentation_config.label_limit=static_cast<std::size_t>(labels);
             browser.configure_presentation();
         }
         ImGui::Text("Preparation: %.3f ms / %zu boxes / %zu labels",browser.preparation_ms,browser.scene.boxes.size(),browser.scene.labels.size());
@@ -212,8 +209,8 @@ void scene_labels(const Presentation& scene,const Camera& camera,float left,floa
             if (rect.x<occupied[i].z && rect.z>occupied[i].x && rect.y<occupied[i].w && rect.w>occupied[i].y) return true;
         return false;
     };
-    // Current-page names precede optional nested labels. Collisions move these
-    // mandatory names to a nearby free row instead of suppressing them.
+    // Collisions move current-page names to a nearby free row instead of
+    // suppressing them. Nested geometry does not supply labels.
     for (bool required:{true,false}) for (bool selected:{true,false}) for (const auto& label:scene.labels) {
         if (!label.visible || label.required!=required || label.selected!=selected) continue;
         const auto point=project(label.anchor,matrix,width,height);

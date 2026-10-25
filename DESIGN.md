@@ -939,18 +939,18 @@ Text must remain highly legible.
 
 The current directory's name and every object name on its current visible page
 must remain displayed, independently of zoom, salience, selection, search/filter
-dimming, and nested label-density settings. Move colliding current-page labels
+dimming, and nested detail settings. Move colliding current-page labels
 instead of silently suppressing them. Full long names remain available in the
 sidebar/inspector when a scene label must be abbreviated.
 
-Directory titles below the current directory's immediate entries are omitted,
-even when those miniature directories have detailed geometry or search matches.
-Entering their parent makes their titles visible at the new browsing level.
-Other nested labels remain optional. Text should not attempt to display every
-nested filename at once. The current-directory heading is independent of spatial
-projection and must remain visible at startup, when ascending, and at `/`.
+Scene names are restricted to the current directory and its immediate visible
+entries. Files, directories, groups, and summaries inside child or sibling
+directories keep their geometry without names, even at full detail or during
+search highlighting. Entering a directory reveals its current-page entry names.
+The current-directory heading is independent of spatial projection and must
+remain visible at startup, when ascending, and at `/`.
 
-Label visibility may depend on:
+Label placement and emphasis may depend on:
 
 - salience
 - selection
@@ -964,7 +964,7 @@ Important or selected files should receive clear labels.
 
 Dense low-salience regions may use abbreviated labels or none until focused.
 
-Nested files may be visible as geometry long before their labels become readable.
+Nested files remain visible as geometry without names until their directory is entered.
 
 That is expected behavior.
 

@@ -227,7 +227,7 @@ capacity. Stable preview anchors survive page round trips. Summary previews do
 not recursively replicate all omitted entries before activation.
 
 Distant standalone files use a single simplified box; medium/near views retain
-semantic shapes. Optional distant nested labels are omitted before text generation. Nested
+semantic shapes. Names outside the current browsing level are never generated. Nested
 traversal is bounded, while the active ancestor chain remains visible. Strong
 sequences keep their roof/support compound; weaker temporal/artifact/summary
 groups share a restrained base. Numeric ordering, member identity, and bounded
@@ -235,9 +235,10 @@ pagination remain unchanged.
 
 The spatial viewport always names the current directory and every object on its
 current page. Current-page labels bypass LOD/density/collision suppression;
-collisions move labels to nearby rows with connecting lines. Nested label density
-only controls optional names. Subsubdirectory titles are omitted; they become
-immediate-entry titles when their parent is entered. The current-directory heading
+collisions move labels to nearby rows with connecting lines. Files, directories,
+groups, and summaries inside child or sibling directories stay unnamed even at
+full detail or with search highlighting. Enter a directory to reveal its own
+current-page entry names. The current-directory heading
 is drawn above object labels and remains named for dot paths, trailing separators,
 and the filesystem root. Immediate child dioramas retain every placement on
 their bounded page even at distant LOD, including their remainder summaries.
@@ -245,7 +246,7 @@ Loading/unavailable directories have labelled markers rather than appearing empt
 Only a successfully loaded directory with no entries is shown as empty.
 
 The **Settings** popup contains session-only animation enable/duration, orbit and
-zoom sensitivity, nested label density, and nested detail depth. Hidden/artifact
+zoom sensitivity and nested detail depth. Hidden/artifact
 visibility remains in Filters. Settings do not reposition objects or scan files.
 The popup shows the latest scene-preparation CPU time and box/label counts;
 this is not GPU/frame timing. Idle frames skip LOD evaluation and geometry
