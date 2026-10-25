@@ -7,11 +7,11 @@
 #include <thread>
 
 namespace spatial {
-struct LoadPolicy { std::size_t preview_entries=64, preview_directories=8; };
+struct LoadPolicy { std::size_t preview_entries=64; };
 Entry read_metadata(const std::filesystem::path& path);
 // One directory only; zero limit means complete enumeration. No recursive walk.
 DirectoryListing read_directory(const std::filesystem::path& path,std::size_t limit=0,std::stop_token stop={});
-struct LoadResult { EntryId directory; DirectoryListing listing; std::size_t limit=0; std::size_t generation=0; };
+struct LoadResult { EntryId directory; DirectoryListing listing; std::size_t limit=0; std::size_t generation=0; std::size_t scope=0; };
 struct PathValidation {
     std::size_t tag=0;
     std::filesystem::path resolved;
@@ -25,13 +25,14 @@ public:
     ~DirectoryLoader();
     DirectoryLoader(const DirectoryLoader&)=delete;
     DirectoryLoader& operator=(const DirectoryLoader&)=delete;
-    void request(EntryId directory,std::filesystem::path path,std::size_t limit,std::size_t generation=0);
+    // Scope is an opaque cache namespace; entry IDs may repeat across scopes.
+    void request(EntryId directory,std::filesystem::path path,std::size_t limit,std::size_t generation=0,std::size_t scope=0);
     void validate(std::size_t tag,std::filesystem::path path,bool directory_only);
     std::vector<PathValidation> poll_validations();
     std::vector<LoadResult> poll();
     void discard_reads_except(std::size_t generation);
 private:
-    struct Request { EntryId directory; std::filesystem::path path; std::size_t limit; std::size_t generation=0, tag=0; bool validation=false, directory_only=false; };
+    struct Request { EntryId directory; std::filesystem::path path; std::size_t limit; std::size_t generation=0, tag=0; bool validation=false, directory_only=false; std::size_t scope=0; };
     void run(std::stop_token stop);
     std::mutex mutex_;
     std::condition_variable_any wake_;

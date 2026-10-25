@@ -172,7 +172,7 @@ void sequences_and_large_directory(const fs::path& root) {
     check(browser.filesystem.state(grandchild).state==LoadState::Ready,"Entering child progressively loads next level");
     browser.act({ActionKind::Up});
     const auto large=named(browser.filesystem,0,"large").id;
-    check(browser.filesystem.state(large).state==LoadState::Preview && browser.filesystem.children(large).size()==64,"Large child preview is bounded");
+    check(browser.filesystem.state(large).state==LoadState::Ready && browser.filesystem.children(large).size()==600,"Immediate child is fully enumerated without entering it");
     const auto large_node=browser.hierarchy.child(browser.current_node(),object(browser,"large"));
     const auto known=browser.hierarchy.node(large_node).world.objects;
     browser.act({ActionKind::Open,object(browser,"large")});
@@ -224,8 +224,14 @@ void loading_regressions(const fs::path& root) {
         });
         check(found!=updated.objects.end() && found->center.x==old.center.x,"Same-pattern groups retain their own IDs and anchors when data updates");
     }
-    Browser pending(root); settle(pending);
-    pending.act({ActionKind::Open,object(pending,"large")});
+    // Seed a partial snapshot while the constructor's complete worker read is
+    // pending, then enter its summary before polling the complete result.
+    Browser pending(root/"large");
+    pending.filesystem.apply(0,read_directory(root/"large",64));
+    const auto& preview=pending.filesystem.children(0);
+    pending.hierarchy.upsert_directory({0,analyze(pending.filesystem,preview,pending.now())},
+        analyze(pending.filesystem,preview,pending.now(),{},false));
+    pending.layout=pending.hierarchy.node(0).world;
     pending.act({ActionKind::Open,pending.layout.objects.size()-1});
     const auto active=pending.current_node();
     const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
@@ -246,6 +252,80 @@ void loading_regressions(const fs::path& root) {
         loader.request(0,root/"large",0);
         loader.request(1,root/"sequences",0);
     } // Cancels pending work and joins without touching graphics or model lifetimes.
+}
+
+void loader_cache_scopes(const fs::path& root) {
+    DirectoryLoader loader;
+    loader.request(0,root/"child",1,7,0);
+    loader.request(0,root/"large",2,7,1);
+    std::set<std::size_t> scopes;
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+    while (scopes.size()<2 && std::chrono::steady_clock::now()<deadline) {
+        for (const auto& result:loader.poll()) {
+            check(result.generation==7 && result.directory==0,"Scoped requests preserve IDs and generation");
+            check(result.listing.entries.size()==(result.scope==0 ? 1u:2u),"Each cache receives its own directory data");
+            scopes.insert(result.scope);
+        }
+        if (scopes.size()<2) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    check(scopes==std::set<std::size_t>{0,1},"Equal IDs in independent caches do not deduplicate one another's worker requests");
+}
+
+void directory_headings(const fs::path& root) {
+    const auto parent=root/"headings";
+    const auto child=parent/"child";
+    fs::create_directories(child);
+    Browser browser(child/".");
+    check(!browser.scene.context_name.empty() && browser.scene.context_name!=".","Startup heading is available before metadata arrives");
+    settle(browser);
+    check(browser.scene.context_name=="child","Dot startup resolves the current directory name after loading");
+    browser.act({ActionKind::Up}); settle(browser);
+    check(browser.scene.context_name=="headings","Ascending beyond the initial world preserves the parent heading");
+    browser.act({ActionKind::Open,object(browser,"child")}); settle(browser);
+    check(browser.scene.context_name=="child","Entered directory has its own heading");
+    browser.act({ActionKind::Up}); settle(browser);
+    check(browser.scene.context_name=="headings","Returning to a cached parent preserves its heading");
+    Browser trailing(fs::path(child.string()+"/"));
+    check(!trailing.scene.context_name.empty(),"Trailing separator has a startup heading");
+    settle(trailing);
+    check(trailing.scene.context_name=="child","Trailing separator resolves the directory name");
+    check(read_directory(child/"..").directory.name=="headings","Parent path syntax resolves the actual directory name");
+    fs::create_directory_symlink(child,root/"heading-link");
+    const auto linked_parent=read_directory(root/"heading-link"/"..");
+    check(linked_parent.directory.name=="headings" && linked_parent.directory.full_path==(root/"heading-link"/"..").string(),
+        "Heading identity resolves symlink parents while preserving the I/O path");
+    // Read one entry only: naming '/' must not trigger a recursive root scan.
+    const auto root_listing=read_directory(fs::path("/"),1);
+    check(root_listing.error.empty() && root_listing.directory.name=="/","Filesystem root has an explicit slash title");
+    Filesystem cache("/"); cache.apply(0,root_listing);
+    check(cache.entry(0).name=="/","Loading root metadata cannot erase its name");
+}
+
+void immediate_directory_loading(const fs::path& root) {
+    const auto path=root/"immediate-children";
+    fs::create_directory(path);
+    for (int i=0;i<16;++i) {
+        const auto child=path/("directory-"+std::to_string(i));
+        fs::create_directories(child/"grandchild"); write(child/"notes.txt");
+        write(child/"grandchild"/"not-recursively-read.txt");
+    }
+    fs::create_directory(path/"empty");
+    for (int i=0;i<100;++i) write(path/"directory-0"/("misc-"+std::to_string(i*3)+".txt"));
+    Browser browser(path); settle(browser);
+    check(browser.scene.context_name=="immediate-children","Real current directory heading is available");
+    for (auto id:browser.filesystem.children(0)) {
+        check(browser.filesystem.state(id).state==LoadState::Ready,"Every visible immediate directory loads, including beyond the old eight-directory limit");
+        if (browser.filesystem.entry(id).name=="empty") check(browser.filesystem.children(id).empty(),"Empty directory is confirmed by enumeration");
+        else {
+            check(!browser.filesystem.children(id).empty(),"Populated directory is never left without a preview");
+            const auto grandchild=named(browser.filesystem,id,"grandchild").id;
+            check(browser.filesystem.state(grandchild).state==LoadState::Unloaded,"Grandchild directories are represented without recursively scanning them");
+        }
+    }
+    const auto large=named(browser.filesystem,0,"directory-0").id;
+    check(browser.filesystem.children(large).size()==102,"Immediate contents beyond the old 64-entry sample are retained");
+    for (const auto& label:browser.scene.labels) if (label.required)
+        check(label.text.find("[loading]")==std::string::npos,"Loading annotation clears when contents are ready");
 }
 
 void milestone4_mixture(const fs::path& root) {
@@ -288,7 +368,7 @@ void milestone4_mixture(const fs::path& root) {
 int main() {
     try {
         TemporaryDirectory temporary;
-        enumeration(temporary.path); errors(temporary.path); enumeration_churn(temporary.path); sequences_and_large_directory(temporary.path); loading_regressions(temporary.path); milestone4_mixture(temporary.path);
+        enumeration(temporary.path); errors(temporary.path); enumeration_churn(temporary.path); sequences_and_large_directory(temporary.path); loading_regressions(temporary.path); milestone4_mixture(temporary.path); immediate_directory_loading(temporary.path); directory_headings(temporary.path); loader_cache_scopes(temporary.path);
         std::cout<<"Real filesystem tests passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

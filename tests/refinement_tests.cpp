@@ -92,8 +92,9 @@ void stress() {
     const auto scene=present(hierarchy,0,no_selection,levels);
     std::vector<unsigned char> far(hierarchy.size(),0);
     const auto distant=present(hierarchy,0,no_selection,far);
-    check(!distant.boxes.empty() && distant.boxes.size()<scene.boxes.size(),"Distant dioramas retain contents with reduced geometry");
-    check(distant.labels.empty(),"Distant content emits no unreadable labels");
+    check(!distant.boxes.empty() && distant.boxes.size()<=scene.boxes.size(),"Distant dioramas preserve structure within the normal geometry budget");
+    check(distant.labels.size()==hierarchy.node(0).world.objects.size(),"Distant views retain every current-page name");
+    for (const auto& label:distant.labels) check(label.required,"Distant nested labels remain optional");
     const auto before=hierarchy.node(0).world.objects;
     hierarchy.upsert_directory({0,analyze(fs,fs.children(0),mock_now)},std::move(individuals));
     const auto& after=hierarchy.node(0).world.objects;
@@ -108,13 +109,113 @@ void display_and_lod() {
     Browser browser;
     const auto positions=browser.layout.objects;
     browser.presentation_config.label_limit=0; browser.configure_presentation();
-    for (const auto& label:browser.scene.labels) check(label.selected,"Zero label density retains selection only");
+    std::size_t required=0;
+    for (const auto& label:browser.scene.labels) if (label.required) ++required;
+    check(required==browser.layout.objects.size(),"Nested label density never suppresses current-page names");
+    check(browser.scene.context_name=="mock","Current directory has an explicit heading");
+    browser.act({ActionKind::Search,0,"nothing matches this filename"});
+    const auto named=std::count_if(browser.scene.labels.begin(),browser.scene.labels.end(),[](const auto& label) { return label.required; });
+    check(static_cast<std::size_t>(named)==positions.size(),"Search dimming does not suppress current-page names");
+    browser.act({ActionKind::Cancel});
     for (std::size_t i=0;i<positions.size();++i) check(same(positions[i].center,browser.layout.objects[i].center),"Display settings preserve layout");
     for (std::size_t i=0;i<browser.layout.objects.size();++i)
         if (browser.layout.objects[i].item.label=="projects") { browser.act({ActionKind::Open,i}); break; }
     browser.update(1);
     browser.presentation_config.nested_depth=1; browser.configure_presentation();
     check(browser.scene.targets.size()==browser.layout.objects.size(),"LOD depth settings cannot hide the active context");
+    browser.act({ActionKind::Up});
+    for (std::size_t i=0;i<browser.layout.objects.size();++i)
+        if (browser.layout.objects[i].item.label=="empty-directory") { browser.act({ActionKind::Open,i}); break; }
+    check(browser.layout.objects.empty() && browser.scene.context_name=="empty-directory","Even an empty current directory has its name displayed");
+}
+void immediate_contents() {
+    Filesystem fs("/fixture");
+    const auto empty=fs.add(0,"empty",EntryKind::Directory,mock_now);
+    const auto full=fs.add(0,"full",EntryKind::Directory,mock_now);
+    for (int i=0;i<30;++i) fs.add(full,"entry-"+std::to_string(i*3)+".txt",EntryKind::File,mock_now);
+    fs.add(full,"subdirectory",EntryKind::Directory,mock_now);
+    std::vector<DirectoryItems> directories;
+    std::vector<EntryId> ids;
+    for (EntryId id=0;id<fs.size();++id) {
+        ids.push_back(id);
+        if (fs.entry(id).kind==EntryKind::Directory) directories.push_back({id,analyze(fs,fs.children(id),mock_now)});
+    }
+    Hierarchy hierarchy; hierarchy.initialize(std::move(directories),analyze(fs,ids,mock_now,{},false));
+    std::vector<unsigned char> far(hierarchy.size(),0);
+    PresentationConfig config; config.nested_depth=0; config.label_limit=0;
+    const auto scene=present(hierarchy,0,no_selection,far,{},config);
+    check(scene.labels.size()==2 && std::all_of(scene.drawn.begin(),scene.drawn.end(),[](auto value) { return value; }),
+        "All current-page objects and names survive distant LOD");
+    for (std::size_t i=0;i<hierarchy.node(0).world.objects.size();++i) {
+        const auto child=hierarchy.child(0,i);
+        const auto& layout=hierarchy.node(child).world;
+        const auto entry=hierarchy.node(0).world.objects[i].item.members.front();
+        if (entry==empty) { check(layout.objects.empty(),"Known empty directory stays empty"); continue; }
+        std::set<EntryId> represented;
+        for (const auto& object:layout.objects) {
+            represented.insert(object.item.members.begin(),object.item.members.end());
+            check(std::any_of(scene.boxes.begin(),scene.boxes.end(),[&](const auto& box) {
+                return std::abs(box.center.x-object.center.x)<0.00001f && std::abs(box.center.z-object.center.z)<0.00001f;
+            }),"Every immediate child placement is drawn, including its remainder and subdirectories");
+        }
+        check(represented.size()==31 && layout.objects.size()==20,"Complete contents remain represented within a bounded diorama");
+    }
+    const auto detailed=present(hierarchy,0,no_selection,std::vector<unsigned char>(hierarchy.size(),2),{},config);
+    check(detailed.boxes.size()>scene.boxes.size(),"Immediate files simplify at distance without losing representation");
+    config.label_limit=20;
+    AppearanceMap highlighted;
+    for (auto id:hierarchy.visible_nodes())
+        for (std::size_t i=0;i<hierarchy.node(id).world.objects.size();++i)
+            highlighted[id].push_back({1,true,true,true});
+    const auto labelled=present(hierarchy,0,no_selection,std::vector<unsigned char>(hierarchy.size(),2),highlighted,config);
+    check(std::any_of(labelled.labels.begin(),labelled.labels.end(),[](const auto& label) { return label.text=="full" && label.required; }),
+        "Immediate subdirectory titles remain displayed");
+    check(std::none_of(labelled.labels.begin(),labelled.labels.end(),[](const auto& label) { return label.text=="subdirectory"; }),
+        "Subsubdirectory titles stay hidden even at full detail or with search highlighting");
+    for (std::size_t i=0;i<hierarchy.node(0).world.objects.size();++i) {
+        if (hierarchy.node(0).world.objects[i].item.members.front()!=full) continue;
+        const auto entered=present(hierarchy,hierarchy.child(0,i),no_selection,
+            std::vector<unsigned char>(hierarchy.size(),2),highlighted,config);
+        check(std::any_of(entered.labels.begin(),entered.labels.end(),[](const auto& label) { return label.text=="subdirectory" && label.required; }),
+            "Entering a directory promotes its immediate subdirectory titles");
+    }
+    AppearanceMap waiting;
+    for (const auto& object:hierarchy.node(0).world.objects) {
+        ObjectAppearance style;
+        if (object.item.members.front()==empty) style.contents_status=" [loading]";
+        waiting[0].push_back(style);
+    }
+    const auto pending=present(hierarchy,0,no_selection,far,waiting,config);
+    check(pending.boxes.size()==scene.boxes.size()+1,"Unknown contents have a marker instead of appearing empty");
+    check(std::any_of(pending.labels.begin(),pending.labels.end(),[](const auto& label) { return label.text=="empty [loading]"; }),
+        "Unknown directory contents are explicitly labelled");
+}
+void parent_frame() {
+    const std::vector<Item> root{{"sibling",Category::Directory,GroupKind::None,0.7f,{1}},
+        {"current",Category::Directory,GroupKind::None,0.6f,{2}}};
+    const std::vector<Item> contents{{"file.txt",Category::Text,GroupKind::None,0.5f,{3}}};
+    Hierarchy hierarchy; hierarchy.initialize({{0,root},{1,{}},{2,contents}},{{"file.txt",Category::Text,GroupKind::None,0.5f,{3}}});
+    const auto active=hierarchy.child(0,1);
+    const auto anchor=contained_transform(hierarchy.node(0).local.objects[1]);
+    const float scale=1/anchor.scale;
+    hierarchy.transform_world({anchor.translation*(-scale),scale});
+    const auto& node=hierarchy.node(active);
+    check(std::abs(node.transform.scale-1)<0.00001f && dot(node.transform.translation,node.transform.translation)<0.00001f,
+        "Parent backdrop maps its active child onto the existing root's identity frame");
+    check(std::abs(node.world.objects[0].center.x-node.local.objects[0].center.x)<0.00001f &&
+        std::abs(node.world.objects[0].center.z-node.local.objects[0].center.z)<0.00001f,
+        "Parent framing preserves the existing current-directory content coordinates");
+    const auto scene=present(hierarchy,active,no_selection,std::vector<unsigned char>(hierarchy.size(),2),{},{},active);
+    check(scene.targets.empty() && std::none_of(scene.labels.begin(),scene.labels.end(),[](const auto& label) { return label.text=="file.txt"; }),
+        "Composed backdrop excludes the current branch supplied by the main scene");
+    for (auto id:hierarchy.visible_nodes()) {
+        const auto& transformed=hierarchy.node(id);
+        for (std::size_t i=0;i<transformed.local.objects.size();++i) {
+            const auto expected=transformed.transform.point(transformed.local.objects[i].center);
+            const auto actual=transformed.world.objects[i].center;
+            check(dot(actual-expected,actual-expected)<0.00001f,"Reframed hierarchy keeps local/world transforms consistent");
+        }
+    }
 }
 void camera_boundaries() {
     Camera camera;
@@ -131,6 +232,6 @@ void camera_boundaries() {
 }
 }
 int main() {
-    try { paging(); stable_loading(); stress(); display_and_lod(); camera_boundaries(); }
+    try { paging(); stable_loading(); stress(); display_and_lod(); immediate_contents(); parent_frame(); camera_boundaries(); }
     catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

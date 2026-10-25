@@ -50,6 +50,15 @@ Entry read_metadata(const fs::path& path) {
 DirectoryListing read_directory(const fs::path& path,std::size_t limit,std::stop_token stop) {
     DirectoryListing result;
     result.directory=read_metadata(path);
+    if (result.directory.name.empty() || result.directory.name=="." || result.directory.name=="..") {
+        // Resolve display identity on the worker. Keep the original I/O path:
+        // lexical normalization of symlink/.. would change its meaning.
+        std::error_code name_error;
+        const auto resolved=fs::canonical(path,name_error);
+        if (!name_error) result.directory.name=resolved.filename().string();
+        if (result.directory.name.empty()) result.directory.name=path.string();
+        result.directory.hidden=result.directory.name.starts_with('.');
+    }
     std::error_code ec;
     // An explicitly supplied root may be a directory symlink; discovered links
     // remain symlinks and are never queued for traversal.
@@ -82,9 +91,9 @@ PathValidation validate_path(const fs::path& path,bool directory_only) {
 }
 DirectoryLoader::DirectoryLoader():worker_([this](std::stop_token stop) { run(stop); }) {}
 DirectoryLoader::~DirectoryLoader() { worker_.request_stop(); wake_.notify_all(); }
-void DirectoryLoader::request(EntryId directory,fs::path path,std::size_t limit,std::size_t generation) {
+void DirectoryLoader::request(EntryId directory,fs::path path,std::size_t limit,std::size_t generation,std::size_t scope) {
     std::lock_guard lock(mutex_);
-    for (auto it=requests_.begin();it!=requests_.end();++it) if (!it->validation && it->directory==directory && it->generation==generation) {
+    for (auto it=requests_.begin();it!=requests_.end();++it) if (!it->validation && it->directory==directory && it->generation==generation && it->scope==scope) {
         if (limit==0) {
             auto request=std::move(*it); request.limit=0;
             requests_.erase(it); requests_.push_front(std::move(request)); wake_.notify_one();
@@ -92,6 +101,7 @@ void DirectoryLoader::request(EntryId directory,fs::path path,std::size_t limit,
         return;
     }
     Request request{directory,std::move(path),limit,generation};
+    request.scope=scope;
     if (limit==0) requests_.push_front(std::move(request));
     else requests_.push_back(std::move(request));
     wake_.notify_one();
@@ -136,7 +146,7 @@ void DirectoryLoader::run(std::stop_token stop) {
         catch (const std::exception& exception) { listing.error=exception.what(); }
         if (stop.stop_requested()) return;
         std::lock_guard lock(mutex_);
-        results_.push_back({request.directory,std::move(listing),request.limit,request.generation});
+        results_.push_back({request.directory,std::move(listing),request.limit,request.generation,request.scope});
     }
 }
 }

@@ -10,6 +10,7 @@
 #include <memory>
 #include <map>
 #include <unordered_map>
+#include <set>
 
 namespace spatial {
 class Browser {
@@ -18,7 +19,9 @@ public:
     explicit Browser(const std::filesystem::path& start);
     bool real_filesystem() const { return loader_!=nullptr; }
     std::int64_t now() const { return now_; }
-    bool loading() const { return !pending_.empty() || !validations_.empty(); }
+    bool loading() const { return !pending_.empty() || !validations_.empty() || (surroundings_ && !surroundings_->pending.empty()); }
+    // Parent backdrop of this cached world (deeper ancestors are in hierarchy).
+    std::optional<std::filesystem::path> surrounding_directory() const;
     const QuerySpec& query() const { return query_; }
     std::size_t matching_objects() const { return matches_.size(); }
     bool search_incomplete() const { return query_result_.incomplete; }
@@ -37,14 +40,25 @@ public:
     PresentationConfig presentation_config;
     double preparation_ms=0;
     std::size_t lod_evaluations=0;
-    void configure_presentation() { refresh_scene(); }
+    void configure_presentation() { refresh_surroundings(); refresh_scene(); }
     float viewport_width=800,viewport_height=600;
     std::size_t scene_revision=0;
     NodeId current_node() const { return current_; }
     void act(UiAction action);
     void update(float seconds);
 private:
-    struct World { std::optional<Filesystem> filesystem; std::optional<Hierarchy> hierarchy; };
+    static constexpr std::size_t surrounding_scope=1;
+    struct Surroundings {
+        Surroundings(std::filesystem::path parent,std::filesystem::path active):filesystem(parent.string()),active(std::move(active)) {}
+        Filesystem filesystem;
+        Hierarchy hierarchy;
+        std::filesystem::path active;
+        std::set<EntryId> pending;
+        NodeId active_node=no_node;
+        std::vector<SceneBox> boxes;
+        std::string error;
+    };
+    struct World { std::optional<Filesystem> filesystem; std::optional<Hierarchy> hierarchy; std::optional<Surroundings> surroundings; };
     struct View {
         std::shared_ptr<World> world;
         NavigationSnapshot navigation;
@@ -53,8 +67,12 @@ private:
         CameraState camera;
         QuerySpec query;
     };
-    enum class Purpose { Location, History, Activate, Terminal };
-    struct Validation { Purpose purpose; std::size_t history_index=0,history_state=0; };
+    enum class Purpose { Location, History, Activate, Terminal, Surroundings };
+    struct Validation { Purpose purpose; std::size_t history_index=0,history_state=0,generation=0; };
+    void request_surroundings();
+    void schedule_surroundings();
+    void apply_surroundings(LoadResult result);
+    void refresh_surroundings();
     void initialize(std::vector<DirectoryItems> directories,std::vector<Item> individuals);
     void request_directory(EntryId id,bool full,bool explicit_request=false);
     void schedule_previews();
@@ -80,6 +98,7 @@ private:
     void terminal_here();
     std::int64_t now_=mock_now;
     std::unique_ptr<DirectoryLoader> loader_;
+    std::optional<Surroundings> surroundings_;
     std::vector<LoadResult> deferred_;
     std::map<EntryId,bool> pending_;
     bool apply_deferred_=false;

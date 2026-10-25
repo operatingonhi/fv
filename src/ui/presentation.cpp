@@ -99,7 +99,7 @@ void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<u
     }
 }
 Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selected,
-    std::span<const unsigned char> levels,const AppearanceMap& appearance,const PresentationConfig& config) {
+    std::span<const unsigned char> levels,const AppearanceMap& appearance,const PresentationConfig& config,NodeId excluded) {
     Presentation result;
     std::vector<NodeId> ancestors;
     for (auto id=current;id!=no_node;id=hierarchy.node(id).parent) ancestors.push_back(id);
@@ -109,10 +109,14 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
         const auto& node=hierarchy.node(id);
         const auto& layout=node.world;
         const DisclosureConfig disclosure;
-        const std::size_t limit=levels[id]==2 ? layout.objects.size():
+        // The active page and its immediate child dioramas always retain their
+        // complete bounded page, including groups and remainder summaries.
+        const bool immediate_child=node.parent==current;
+        const std::size_t limit=(id==current || immediate_child || levels[id]==2) ? layout.objects.size():
             levels[id]==1 ? disclosure.nearby_objects:disclosure.distant_objects;
         for (std::size_t i=0;i<layout.objects.size();++i) {
             const auto child=hierarchy.child(id,i);
+            if (excluded!=no_node && child==excluded) continue; // Supplied by another composed scene.
             const bool active=id==current && i==selected;
             const bool on_path=std::find(ancestors.begin(),ancestors.end(),child)!=ancestors.end();
             const auto& object=layout.objects[i];
@@ -130,20 +134,25 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
                 const auto transform=compose(node.transform,contained_transform(node.local.objects[i]));
                 enclosure(result.boxes,transform,object.item.group,color);
                 const bool near_context=std::find(ancestors.begin(),ancestors.end(),id)!=ancestors.end();
-                if (child!=no_node && (on_path || (depth<config.nested_depth && (near_context || levels[id]>0 || depth<2))))
+                if (!style.contents_status.empty() && (child==no_node || hierarchy.node(child).world.objects.empty()))
+                    result.boxes.push_back({transform.point(diorama_focus+Vec3{0,0.25f,0}),Vec3{0.7f,0.5f,0.7f}*transform.scale,color});
+                if (child!=no_node && (id==current || on_path || (depth<config.nested_depth && (near_context || levels[id]>0 || depth<2))))
                     self(self,child,depth+1);
             } else if (levels[id]==0 && !active && !style.force_detail)
                 result.boxes.push_back({object.center,object.size*0.65f,color});
             else file_geometry(result.boxes,file_shape(object.item.category),object.center,object.size,color);
             if (active)
                 result.boxes.push_back({object.center,object.size+Vec3{0.12f,0.12f,0.12f}*node.transform.scale,selection_color});
-            const bool label_visible=style.labels && (active || style.force_detail ||
-                (config.label_limit>0 && levels[id]>0 && (layout.detail_rank[i]<config.label_limit || container)));
+            // Directory names belong to the current browsing level. Miniature
+            // directories inside its children keep their geometry without titles.
+            if (id!=current && object.item.category==Category::Directory) continue;
+            const bool label_visible=id==current || (style.labels && (active || style.force_detail ||
+                (config.label_limit>0 && levels[id]>0 && (layout.detail_rank[i]<config.label_limit || container))));
             if (!label_visible) continue;
-            std::string label=display_name(object.item.label);
+            std::string label=display_name(object.item.label)+style.contents_status;
             if (object.item.group!=GroupKind::None) label+=" ("+std::to_string(object.item.members.size())+")";
             result.labels.push_back({object.center+Vec3{0,object.size.y/2+0.2f*node.transform.scale,0},
-                active ? selection_color:color,std::move(label),true,active,object.size.x});
+                active ? selection_color:color,std::move(label),true,active,object.size.x,id==current});
         }
     };
     visit(visit,0,0);

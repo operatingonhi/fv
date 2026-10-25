@@ -41,6 +41,7 @@ public:
     NodeId child(NodeId id,std::size_t index) const;
     void ensure_preview(NodeId id,unsigned depth);
     void set_page(NodeId id,std::size_t page);
+    void transform_world(LocalTransform transform);
     const std::vector<NodeId>& visible_nodes() const { return visible_; }
     Vec3 focus(NodeId id) const { return node(id).transform.point(diorama_focus); }
     std::size_t size() const { return nodes_.size(); }

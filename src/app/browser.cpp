@@ -33,7 +33,7 @@ Browser::Browser(const std::filesystem::path& start):filesystem(start.string()),
     if (ec) {
         DirectoryListing failed; failed.error="Starting path: "+ec.message();
         filesystem.apply(root_id,std::move(failed)); update_status();
-    } else request_directory(root_id,true);
+    } else { request_directory(root_id,true); request_surroundings(); }
 }
 void Browser::request_directory(EntryId id,bool full,bool explicit_request) {
     if (!loader_ || filesystem.entry(id).kind!=EntryKind::Directory) return;
@@ -48,11 +48,10 @@ void Browser::request_directory(EntryId id,bool full,bool explicit_request) {
 }
 void Browser::schedule_previews() {
     if (!loader_) return;
-    std::size_t directories=0;
     for (const auto& placement:layout.objects) {
         const auto& item=placement.item;
-        if (item.group==GroupKind::None && item.category==Category::Directory && directories++<load_policy.preview_directories)
-            request_directory(item.members.front(),false);
+        if (item.group==GroupKind::None && item.category==Category::Directory)
+            request_directory(item.members.front(),true);
     }
 }
 void Browser::update_status() {
@@ -64,6 +63,7 @@ void Browser::update_status() {
     if (!state.message.empty()) status+=" | "+state.message;
     if (!pending_.empty()) status+=" | "+std::to_string(pending_.size())+" loads/updates pending";
     if (!deferred_.empty()) status+=" | Return to parent to apply ready updates";
+    if (surroundings_ && !surroundings_->error.empty()) status+=" | Parent context: "+surroundings_->error;
 }
 void Browser::refresh_scene() {
     const auto started=std::chrono::steady_clock::now();
@@ -71,6 +71,13 @@ void Browser::refresh_scene() {
     detail_levels(hierarchy,camera,levels_);
     last_lod_camera_=camera.state(); ++lod_evaluations;
     scene=present(hierarchy,current_,navigation.selected(),levels_,appearances_,presentation_config);
+    if (surroundings_) scene.boxes.insert(scene.boxes.begin(),surroundings_->boxes.begin(),surroundings_->boxes.end());
+    const auto& directory=filesystem.entry(navigation.context().directory);
+    // Before metadata arrives, '.' and '..' are path syntax rather than names.
+    // A path fallback also keeps the filesystem root visible (filename is empty).
+    scene.context_name=display_name(directory.name.empty() || directory.name=="." || directory.name==".." ?
+        directory.full_path:directory.name);
+    if (navigation.context().group) scene.context_name+=" / ["+display_name(navigation.context().group->label)+"]";
     preparation_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
     ++scene_revision;
 }
@@ -99,9 +106,11 @@ void Browser::update(float seconds) {
         deferred_.clear(); apply_deferred_=false;
     }
     bool status_changed=false;
+    bool surroundings_changed=false;
     std::set<EntryId> rescore_parents;
     for (auto& result:results) {
         if (result.generation!=generation_) continue;
+        if (result.scope==surrounding_scope) { apply_surroundings(std::move(result)); surroundings_changed=true; continue; }
         // Don't regroup an enclosing directory while the user is inside one of
         // its groups/descendants: that could detach the active diorama. Apply the
         // ready snapshot on return, retaining the old readable context meanwhile.
@@ -129,11 +138,13 @@ void Browser::update(float seconds) {
         const auto& children=filesystem.children(parent);
         hierarchy.upsert_directory({parent,analyze(filesystem,children,now_)},analyze(filesystem,children,now_,{},false));
     }
+    if (surroundings_changed) refresh_surroundings();
     if (changed) {
         hierarchy.ensure_preview(current_,hierarchy.config.preview_depth);
         sync_view(); schedule_previews(); update_status();
     }
     if (status_changed) update_status();
+    if (surroundings_changed) { if (!changed) refresh_scene(); update_status(); }
     camera.update(seconds);
     if (camera.state()!=last_lod_camera_) {
         detail_levels(hierarchy,camera,scratch_levels_,levels_);
@@ -150,11 +161,20 @@ void Browser::rebuild_query() {
     const auto& items=hierarchy.node(current_).items;
     for (std::size_t i=0;i<items.size();++i) if (eligible(items[i])) matches_.push_back(i);
     appearances_.clear();
-    if (query_.active()) for (auto id:hierarchy.visible_nodes()) {
+    for (auto id:hierarchy.visible_nodes()) {
         auto& styles=appearances_[id];
         for (const auto& placement:hierarchy.node(id).world.objects) {
-            const bool match=item_matches(placement.item,query_result_);
-            styles.push_back({match ? 1.0f:0.16f,match,match,match});
+            const bool match=!query_.active() || item_matches(placement.item,query_result_);
+            styles.push_back({match ? 1.0f:0.16f,match,match,query_.active() && match});
+            if (loader_ && placement.item.group==GroupKind::None && placement.item.category==Category::Directory) {
+                const auto& state=filesystem.state(placement.item.members.front());
+                if (state.state==LoadState::Error) styles.back().contents_status=" [unavailable]";
+                else if (state.state!=LoadState::Ready) styles.back().contents_status=" [loading]";
+                else if (hierarchy.child(id,styles.size()-1)==no_node) {
+                    const auto count=filesystem.children(placement.item.members.front()).size();
+                    if (count) styles.back().contents_status=" ["+std::to_string(count)+" entries]";
+                }
+            }
         }
     }
     query_dirty_=false;
@@ -281,7 +301,7 @@ void Browser::act(UiAction action) {
     case ActionKind::Forward: go_history(1); break;
     case ActionKind::Terminal: terminal_here(); break;
     case ActionKind::Cancel:
-        validations_.clear(); location_tag_=0;
+        std::erase_if(validations_,[](const auto& entry) { return entry.second.purpose!=Purpose::Surroundings; }); location_tag_=0;
         notice.clear(); query_.text.clear(); query_dirty_=true; refresh_scene(); break;
     }
 }

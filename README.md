@@ -37,7 +37,18 @@ ctest --test-dir build --output-on-failure
 ./build/spatial-navigator ~/projects      # optional starting path
 ```
 
-The selected path starts a cached spatial world. Ordinary parent/child navigation
+The selected path starts a cached spatial world with an asynchronously loaded
+parent/sibling backdrop. This same context is loaded after ascending beyond an
+unvisited world boundary or jumping to a new path. Parent geometry is aligned
+around the existing current-directory footprint without moving its objects or
+camera when background results arrive. Sibling contents use compact unnamed
+previews (at most 64 entries for each displayed directory); dense parents keep
+bounded pages/groups/Other entries and choose the page containing the CWD.
+The root `/` has no parent context. An unreadable parent reports status while
+keeping the CWD usable. These surroundings are context geometry; selection and
+picking remain in the CWD. History caches and restores the matching backdrop.
+
+Ordinary parent/child navigation
 zooms through its existing nested geometry. Backspace at the initial root, or
 entry beyond the six-level geometry cap, starts another bounded world; unrelated
 path jumps also use a controlled scene change. Invalid/inaccessible paths report
@@ -67,15 +78,17 @@ can be exercised directly in tests.
 
 The policy is deliberately bounded and explicit:
 
-- Fully enumerate the starting/current directory on the worker.
-- Preview at most eight directory objects on the current page, reading at most
-  64 entries from each. The preview is an iterator-order sample, sorted before
-  analysis; it is not a full recursive scan or a globally ranked sample.
-- Focusing another directory can request its preview. Entering one prioritizes a
-  full read and then requests previews of its own immediate children.
+- Read one parent listing for the world's surrounding context and sample only
+  the displayed siblings' immediate contents. Do not recursively scan them.
+- Fully enumerate the starting/current directory on the worker, then every
+  immediate directory displayed on its current page (at most twenty by default).
+  All their cached entries are represented through bounded pages, compound groups,
+  and Other entries; there is no eight-directory or 64-entry preview cutoff.
+- Focusing another directory can request a small fallback preview. Entering one
+  prioritizes a full read and then loads its own displayed immediate directories.
 - Grandchildren are not read recursively at startup. They load progressively
   when their parent becomes active. Visited metadata and pages are cached.
-- `LoadPolicy` isolates the preview limits; `HierarchyConfig` retains the existing
+- `LoadPolicy` isolates the fallback preview size; `HierarchyConfig` retains the existing
   three-level visual preview and six-level total geometry nesting cap, counting
   groups/summaries. Navigation beyond that cap starts another bounded world; seamless
   visual rebasing remains future refinement. The visual preview depth never causes filesystem traversal.
@@ -191,8 +204,9 @@ the sidebar, and open omitted entries in score order. Remainders inside a series
 preserve numeric order instead.
 
 Disclosure priority is computed in the layout layer separately from object
-positions. Distant nodes show three important objects/structures, medium nodes
-six, and nearby nodes their bounded page. Selection and the active ancestor path
+positions. Beyond the active directory and its immediate child dioramas, distant
+nodes show three important objects/structures, medium nodes six, and nearby
+nodes their bounded page. Selection and the active ancestor path
 remain visible even outside those limits. This also lets a valuable newly loaded
 file be discoverable through a prioritized summary without moving known objects.
 
@@ -213,14 +227,25 @@ capacity. Stable preview anchors survive page round trips. Summary previews do
 not recursively replicate all omitted entries before activation.
 
 Distant standalone files use a single simplified box; medium/near views retain
-semantic shapes. Distant labels are omitted before text generation. Nested
+semantic shapes. Optional distant nested labels are omitted before text generation. Nested
 traversal is bounded, while the active ancestor chain remains visible. Strong
 sequences keep their roof/support compound; weaker temporal/artifact/summary
 groups share a restrained base. Numeric ordering, member identity, and bounded
 pagination remain unchanged.
 
+The spatial viewport always names the current directory and every object on its
+current page. Current-page labels bypass LOD/density/collision suppression;
+collisions move labels to nearby rows with connecting lines. Nested label density
+only controls optional names. Subsubdirectory titles are omitted; they become
+immediate-entry titles when their parent is entered. The current-directory heading
+is drawn above object labels and remains named for dot paths, trailing separators,
+and the filesystem root. Immediate child dioramas retain every placement on
+their bounded page even at distant LOD, including their remainder summaries.
+Loading/unavailable directories have labelled markers rather than appearing empty.
+Only a successfully loaded directory with no entries is shown as empty.
+
 The **Settings** popup contains session-only animation enable/duration, orbit and
-zoom sensitivity, label density, and nested detail depth. Hidden/artifact
+zoom sensitivity, nested label density, and nested detail depth. Hidden/artifact
 visibility remains in Filters. Settings do not reposition objects or scan files.
 The popup shows the latest scene-preparation CPU time and box/label counts;
 this is not GPU/frame timing. Idle frames skip LOD evaluation and geometry

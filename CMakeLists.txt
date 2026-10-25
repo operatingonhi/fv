@@ -27,7 +27,7 @@ add_library(browser STATIC
     src/filesystem/model.cpp src/filesystem/reader.cpp src/filesystem/mock_filesystem.cpp src/analysis/analysis.cpp src/analysis/query.cpp
     src/layout/layout.cpp src/layout/hierarchy.cpp src/navigation/navigation.cpp
     src/navigation/spatial_selection.cpp src/navigation/path.cpp src/navigation/history.cpp
-    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp src/app/browser_navigation.cpp src/app/desktop.cpp)
+    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp src/app/browser_navigation.cpp src/app/browser_surroundings.cpp src/app/desktop.cpp)
 target_link_libraries(browser PUBLIC camera Threads::Threads)
 target_compile_options(browser PRIVATE -Wall -Wextra -Wpedantic)
 

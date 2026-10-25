@@ -175,6 +175,71 @@ void real_navigation(const fs::path& root) {
     if (denied.error.empty()) std::cout<<"Permission validation skipped for privileged process\n";
     fs::permissions(root/"denied",fs::perms::owner_all);
 }
+void parent_surroundings(const fs::path& root) {
+    const auto family=root/"context";
+    const auto parent=family/"parent";
+    const auto start=parent/"target";
+    fs::create_directories(start/"child"); write(start/"own.txt"); write(start/"child"/"inside.txt");
+    fs::create_directories(parent/"sibling"/"grandchild"); write(parent/"sibling"/"sibling-only.txt");
+    write(parent/"sibling"/"grandchild"/"not-recursively-read.txt");
+    fs::create_directories(family/"uncle"); write(family/"uncle"/"other.txt");
+    Browser browser(start);
+    const auto pose=browser.camera.state();
+    const auto transform=browser.hierarchy.node(0).transform;
+    settle(browser);
+    check(browser.surrounding_directory()==parent,"Startup includes an unvisited parent and siblings");
+    check(browser.camera.state()==pose && browser.hierarchy.node(0).transform.translation==transform.translation &&
+        browser.hierarchy.node(0).transform.scale==transform.scale,"Parent arrival does not move the CWD or camera");
+    check(browser.scene.targets.size()==browser.layout.objects.size(),"Sibling geometry does not become a CWD picking target");
+    check(std::any_of(browser.scene.boxes.begin(),browser.scene.boxes.end(),[](const auto& box) { return box.size.x>20; }),
+        "The parent plane surrounds the existing current-directory footprint");
+    check(std::none_of(browser.scene.labels.begin(),browser.scene.labels.end(),[](const auto& label) {
+        return label.text.find("sibling-only")!=std::string::npos;
+    }),"Contents of surrounding siblings do not add labels");
+    check(browser.filesystem.children(0).size()==2,"Parent/sibling enumeration does not contaminate the current filesystem cache");
+    const auto revision=browser.scene_revision;
+    for (int i=0;i<100;++i) browser.update(0.016f);
+    check(browser.scene_revision==revision,"Cached sibling geometry is not rebuilt on idle frames");
+    browser.act({ActionKind::Open,object(browser,"child")}); settle(browser);
+    browser.act({ActionKind::Up}); settle(browser);
+    check(browser.scene.context_name=="target" && browser.surrounding_directory()==parent,"Descending and returning preserves the backdrop");
+    browser.act({ActionKind::Up}); settle(browser);
+    check(browser.scene.context_name=="parent" && browser.surrounding_directory()==family,
+        "Ascending beyond the initial world includes siblings from the next unseen parent");
+    browser.act({ActionKind::Back}); settle(browser);
+    check(browser.scene.context_name=="target" && browser.surrounding_directory()==parent,"History restores the matching parent backdrop");
+    browser.act({ActionKind::Forward}); settle(browser);
+    check(browser.scene.context_name=="parent" && browser.surrounding_directory()==family,"Forward history preserves its own parent backdrop");
+    Browser cancelled(start); cancelled.act({ActionKind::Cancel}); settle(cancelled);
+    check(cancelled.surrounding_directory()==parent,"Escape cancels transient navigation without dropping background context");
+    Browser racing(start); racing.act({ActionKind::Navigate,0,(family/"uncle").string()}); settle(racing);
+    check(racing.scene.context_name=="uncle" && racing.surrounding_directory()==family,"Stale parent results cannot attach to an unrelated location");
+    fs::create_directory_symlink(start,root/"context-alias");
+    Browser alias(root/"context-alias"); settle(alias);
+    check(alias.surrounding_directory()==parent,"Starting through a symlink uses the actual directory's siblings");
+
+    const auto dense=root/"context-dense";
+    fs::create_directory(dense);
+    for (int i=0;i<30;++i) fs::create_directory(dense/("directory-"+std::to_string(i)));
+    fs::create_directory(dense/".low-priority-target");
+    Browser hidden(dense/".low-priority-target"); settle(hidden);
+    check(hidden.surrounding_directory()==dense && hidden.scene.context_name==".low-priority-target",
+        "Low-priority CWD gets a surrounding page even beyond the parent's first page");
+    check(hidden.scene.boxes.size()<300,"Large-parent context stays bounded by pages and compact previews");
+    const auto denied=root/"context-denied";
+    fs::create_directories(denied/"active"); write(denied/"active"/"own.txt");
+    struct RestorePermissions {
+        fs::path path;
+        ~RestorePermissions() { std::error_code ec; fs::permissions(path,fs::perms::owner_all,fs::perm_options::add,ec); }
+    } restore{denied};
+    fs::permissions(denied,fs::perms::owner_exec);
+    if (!read_directory(denied,1).error.empty()) {
+        Browser isolated(denied/"active"); settle(isolated);
+        check(isolated.filesystem.state(0).state==LoadState::Ready && isolated.scene.context_name=="active" &&
+            !isolated.surrounding_directory() && isolated.status.find("Parent context:")!=std::string::npos,
+            "Unreadable parent preserves a usable CWD and reports the unavailable backdrop");
+    } else std::cout<<"Parent permission check skipped for privileged process\n";
+}
 void paged_history(const fs::path& root) {
     const auto paged=root/"paged"; fs::create_directory(paged);
     for (int i=0;i<27;++i) fs::create_directory(paged/("dir-"+std::to_string(i)));
@@ -192,7 +257,7 @@ void paged_history(const fs::path& root) {
 int main() {
     try {
         directional_selection(); queries_and_shared_selection(); paths_history_and_commands();
-        TemporaryDirectory temporary; real_navigation(temporary.path); paged_history(temporary.path);
+        TemporaryDirectory temporary; real_navigation(temporary.path); paged_history(temporary.path); parent_surroundings(temporary.path);
         std::cout<<"Milestone 5 selection, search/filter, path, history and command tests passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

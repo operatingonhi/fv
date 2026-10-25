@@ -6,6 +6,16 @@ namespace spatial {
 LocalTransform compose(LocalTransform parent,LocalTransform child) {
     return {parent.point(child.translation),parent.scale*child.scale};
 }
+void Hierarchy::transform_world(LocalTransform transform) {
+    for (auto& node:nodes_) {
+        node.transform=compose(transform,node.transform);
+        node.world.origin=transform.point(node.world.origin);
+        for (auto& object:node.world.objects) {
+            object.center=transform.point(object.center);
+            object.size=object.size*transform.scale;
+        }
+    }
+}
 LocalTransform contained_transform(const Placement& local) {
     const float scale=std::min(local.size.x/diorama_size.x,local.size.z/diorama_size.z)*0.94f;
     const Vec3 floor{local.center.x,local.center.y-local.size.y/2+0.025f,local.center.z};

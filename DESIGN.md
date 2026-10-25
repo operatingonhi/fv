@@ -239,6 +239,16 @@ A child's layout should be spatially relative to its parent.
 
 This requirement should influence the architecture even if early implementations render only a limited hierarchy depth for performance.
 
+A newly opened directory should also have its parent and sibling context, even
+when that parent has not previously been visited. Load one parent listing and
+bounded, unnamed sibling-content previews asynchronously. Align this parent
+backdrop around the current directory's existing coordinates; its arrival must
+not reposition current objects or move the camera. Dense parent listings retain
+groups and remainder summaries, with the current directory represented
+individually on the chosen parent page. The filesystem root has no such backdrop;
+an unreadable parent must leave the current directory usable.
+
+
 ---
 
 # 9. Level of Detail for Nested Content
@@ -279,6 +289,14 @@ Show:
 - relevant metadata
 
 Nested content should therefore become progressively clearer as the camera approaches it.
+
+The immediate subdirectories shown on the current page must have their contents
+represented, including their files and child directories. Their displayed pages
+remain visible even at distant LOD. Large contents may use compact compound groups
+and navigable remainder summaries to preserve the bounded footprint. Enumerate
+these immediate directories asynchronously without recursively scanning deeper
+levels. Distinguish pending/unavailable contents from confirmed empty directories.
+Nested filenames need not be displayed.
 
 This should feel like zooming into an existing world.
 
@@ -919,7 +937,18 @@ The implementation need not literally use a traditional scene graph if another a
 
 Text must remain highly legible.
 
-Labels should not attempt to display every filename at all times.
+The current directory's name and every object name on its current visible page
+must remain displayed, independently of zoom, salience, selection, search/filter
+dimming, and nested label-density settings. Move colliding current-page labels
+instead of silently suppressing them. Full long names remain available in the
+sidebar/inspector when a scene label must be abbreviated.
+
+Directory titles below the current directory's immediate entries are omitted,
+even when those miniature directories have detailed geometry or search matches.
+Entering their parent makes their titles visible at the new browsing level.
+Other nested labels remain optional. Text should not attempt to display every
+nested filename at once. The current-directory heading is independent of spatial
+projection and must remain visible at startup, when ascending, and at `/`.
 
 Label visibility may depend on:
 
