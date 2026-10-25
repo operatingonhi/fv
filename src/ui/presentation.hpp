@@ -1,14 +1,18 @@
 #pragma once
-#include "layout/layout.hpp"
+#include "layout/hierarchy.hpp"
+#include "graphics/camera.hpp"
 #include "graphics/scene.hpp"
 
 namespace spatial {
 Vec3 semantic_color(Category category);
-struct SceneLabel { Vec3 anchor,color; std::string text; bool visible,selected; };
+struct SceneLabel { Vec3 anchor,color; std::string text; bool visible,selected; float extent=1; };
 struct Presentation {
     Vec3 grid_origin{};
     std::vector<SceneBox> boxes, targets;
     std::vector<SceneLabel> labels;
 };
-Presentation present(const Layout& layout,std::size_t selected);
+// Geometry LOD depends on apparent world scale, not which directory was activated.
+void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<unsigned char>& result);
+Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selected,
+    std::span<const unsigned char> levels);
 }

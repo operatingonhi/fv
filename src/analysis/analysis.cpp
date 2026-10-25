@@ -12,18 +12,22 @@ std::string extension(const std::string& name) {
     const auto dot=name.rfind('.');
     return dot==std::string::npos ? "":name.substr(dot);
 }
-struct Numbered { std::string prefix,extension; std::uint64_t number; };
-std::optional<Numbered> numbered(const Entry& entry) {
-    if (entry.kind==EntryKind::Directory) return {};
+struct Numbered { std::string prefix,suffix; std::uint64_t number; };
+std::vector<Numbered> numbered(const Entry& entry) {
+    std::vector<Numbered> result;
+    if (entry.kind==EntryKind::Directory) return result;
     const auto dot=entry.name.rfind('.');
     const auto end=dot==std::string::npos ? entry.name.size():dot;
-    auto start=end;
-    while (start>0 && entry.name[start-1]>='0' && entry.name[start-1]<='9') --start;
-    if (start==end || start==0) return {};
-    std::uint64_t number=0;
-    const auto parsed=std::from_chars(entry.name.data()+start,entry.name.data()+end,number);
-    if (parsed.ec!=std::errc{}) return {};
-    return Numbered{entry.name.substr(0,start),entry.name.substr(end),number};
+    for (std::size_t i=0;i<end;) {
+        if (entry.name[i]<'0' || entry.name[i]>'9') { ++i; continue; }
+        const auto start=i;
+        while (i<end && entry.name[i]>='0' && entry.name[i]<='9') ++i;
+        std::uint64_t number=0;
+        const auto parsed=std::from_chars(entry.name.data()+start,entry.name.data()+i,number);
+        if (parsed.ec==std::errc{})
+            result.push_back({entry.name.substr(0,start),entry.name.substr(i),number});
+    }
+    return result;
 }
 }
 Category classify(const Entry& entry) {
@@ -37,6 +41,17 @@ Category classify(const Entry& entry) {
     if (ext==".mp4" || ext==".ogg" || ext==".wav") return Category::Media;
     if (ext==".zip" || ext==".gz" || ext==".tar") return Category::Archive;
     return Category::Text;
+}
+FileShape file_shape(Category category) {
+    switch (category) {
+    case Category::Directory: return FileShape::Diorama;
+    case Category::Text: case Category::Source: return FileShape::Document;
+    case Category::Image: return FileShape::ImagePanel;
+    case Category::Media: return FileShape::MediaPanels;
+    case Category::Archive: return FileShape::ArchiveStack;
+    case Category::Generated: return FileShape::LowTile;
+    default: return FileShape::Prism;
+    }
 }
 float salience(const Entry& entry,std::int64_t now,const AnalysisConfig& config) {
     const double age=std::max(0.0,static_cast<double>(now)-static_cast<double>(entry.modified));
@@ -72,12 +87,14 @@ std::vector<Item> analyze(const MockFilesystem& fs,std::span<const EntryId> entr
     };
     const auto minimum=std::max<std::size_t>(3,config.minimum_group);
     if (grouping) {
-        // Exact prefix + extension; only unambiguous consecutive runs of >=3.
+        // Each maximal numeric token is a candidate; all surrounding text must match.
         using NumberIndex=std::pair<std::uint64_t,std::size_t>;
         std::map<std::pair<std::string,std::string>,std::vector<NumberIndex>> sequences;
         for (std::size_t i=0;i<entries.size();++i)
-            if (auto n=numbered(fs.entry(entries[i])))
-                sequences[{n->prefix,n->extension}].push_back({n->number,i});
+            for (const auto& n:numbered(fs.entry(entries[i])))
+                sequences[{n.prefix,n.suffix}].push_back({n.number,i});
+        struct Candidate { std::string label; std::vector<std::size_t> indices; };
+        std::vector<Candidate> candidates;
         for (auto& [key,sequence]:sequences) {
             std::sort(sequence.begin(),sequence.end());
             bool ambiguous=false;
@@ -91,11 +108,20 @@ std::vector<Item> analyze(const MockFilesystem& fs,std::span<const EntryId> entr
                 if (end-begin>=minimum) {
                     std::vector<std::size_t> indices;
                     for (auto i=begin;i<end;++i) indices.push_back(sequence[i].second);
-                    emit(indices,GroupKind::Series,key.first+"*"+key.second);
+                    candidates.push_back({key.first+"*"+key.second,std::move(indices)});
                 }
                 begin=end;
             }
         }
+        // A filename with several numbers may match several patterns. Prefer the
+        // longest run, then its pattern name; never assign a member twice.
+        std::stable_sort(candidates.begin(),candidates.end(),[](const Candidate& a,const Candidate& b) {
+            if (a.indices.size()!=b.indices.size()) return a.indices.size()>b.indices.size();
+            return a.label<b.label;
+        });
+        for (const auto& candidate:candidates)
+            if (std::none_of(candidate.indices.begin(),candidate.indices.end(),[&](auto i) { return used[i]; }))
+                emit(candidate.indices,GroupKind::Series,candidate.label);
         // Time proximity alone is insufficient: require a shared name prefix and category.
         std::map<std::pair<std::string,Category>,std::vector<std::size_t>> related;
         for (std::size_t i=0;i<entries.size();++i) {

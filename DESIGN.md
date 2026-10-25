@@ -11,7 +11,8 @@ The goal is not to recreate the original program exactly. Instead, the applicati
 - lightweight native rendering
 - strong keyboard and mouse interaction
 - intelligent visual prioritization of files and directories
-- animated spatial transitions
+- nested spatial representation of filesystem hierarchy
+- animated spatial navigation without abrupt scene replacement
 - optional perspective changes through camera orbit
 - conventional file-management functionality where appropriate
 
@@ -52,26 +53,54 @@ The application should explicitly support native X11 operation.
 
 The navigator is not intended to be a conventional file manager with a decorative 3D skin.
 
-The filesystem should be presented as a spatial information environment in which visual prominence represents likely user relevance.
+The filesystem should be presented as a spatial information environment in which visual prominence represents likely user relevance and filesystem hierarchy is expressed through nested spatial structure.
 
-The central concept is:
+The central concepts are:
 
 > The spatial layout should help direct the user's attention toward files and directories they are most likely to want.
 
+and:
+
+> Directories are nested places within one continuous spatial world, not separate unrelated scenes.
+
 The visualization should communicate:
 
+- hierarchy
 - relevance
 - recency
 - relationship
 - density
 - file type
-- hierarchy
+- grouping
+- containment
 
 The filesystem remains the underlying data model, but directory order alone should not determine visual prominence.
 
 ---
 
-# 4. Visual Style
+# 4. Spatial Metaphor
+
+A useful conceptual analogy is:
+
+- directories are cities or districts
+- ordinary individual files are houses or buildings
+- sequential or strongly related file groups are apartment complexes or other compound buildings
+- nested subdirectories are smaller cities or districts contained within larger ones
+- the camera moves through this hierarchy rather than loading unrelated replacement scenes
+
+This analogy is conceptual rather than literal.
+
+The renderer does not need to depict realistic buildings, roads, or cities.
+
+The important idea is that hierarchy and grouping should be visible spatially.
+
+A subdirectory should look like a contained place whose contents already exist within it.
+
+A file series should look like one cohesive compound structure containing multiple members rather than a row of unrelated identical objects.
+
+---
+
+# 5. Visual Style
 
 The overall visual language should evoke a restrained retro-futuristic technical interface.
 
@@ -93,7 +122,7 @@ The scene should remain legible and functional even when displaying real directo
 
 ---
 
-# 5. 2.5D Spatial Model
+# 6. 2.5D Spatial Model
 
 The normal interface should be fundamentally 2.5D rather than a freely navigable three-dimensional world.
 
@@ -107,6 +136,7 @@ Depth should be used to:
 - show relationships
 - improve legibility
 - support perspective effects
+- show containment
 
 The user should not need to navigate through a fully three-dimensional environment in order to use the application.
 
@@ -114,7 +144,149 @@ Filesystem navigation must remain simple and predictable.
 
 ---
 
-# 6. Camera and Perspective
+# 7. Nested Directory Dioramas
+
+Directories must not be represented only as opaque nodes that are replaced by another scene when entered.
+
+A directory should contain a visible spatial representation of at least some of its contents.
+
+If the current directory is represented by a floor plane and backdrop plane, a subdirectory may use a smaller version of that same spatial form.
+
+Its child files and child directories should be positioned within that subdirectory's visible region.
+
+The result should resemble a nested diorama.
+
+For example:
+
+```text
+current directory
+|
++-- file
+|
++-- file
+|
++-- subdirectory
+    |
+    +-- file
+    |
+    +-- file series
+    |
+    +-- nested subdirectory
+        |
+        +-- file
+```
+
+The graphical scene should similarly contain:
+
+```text
+large directory environment
+    ordinary file object
+    ordinary file object
+
+    smaller subdirectory environment
+        smaller file object
+        compound file-series structure
+
+        even smaller nested directory environment
+            smaller file object
+```
+
+The nested content does not need to remain readable at every scale.
+
+From an upstream directory:
+
+- child files may be tiny
+- labels may disappear
+- detailed geometry may simplify
+- low-salience objects may become abstract
+- nested contents may be represented at reduced detail
+
+However, the contents should still visibly exist.
+
+Entering the subdirectory should reveal and enlarge the content that was already visible rather than replacing the whole scene with newly appearing objects.
+
+This continuity is a core requirement.
+
+---
+
+# 8. Hierarchical Scene Continuity
+
+Filesystem hierarchy should be represented as a continuous nested spatial structure.
+
+The application should avoid the conceptual model:
+
+```text
+directory A scene
+    -> destroy/hide scene
+directory B scene
+```
+
+when B is a child of A.
+
+The preferred conceptual model is:
+
+```text
+directory A
+    contains directory B
+        contains directory C
+```
+
+and navigation changes what portion of this existing hierarchy occupies the viewport.
+
+Scene construction, layout, and camera systems should therefore support nested coordinate systems or equivalent hierarchical transforms.
+
+A child's layout should be spatially relative to its parent.
+
+This requirement should influence the architecture even if early implementations render only a limited hierarchy depth for performance.
+
+---
+
+# 9. Level of Detail for Nested Content
+
+Nested visualization must not require full-detail rendering of the entire filesystem.
+
+Use progressive levels of detail.
+
+Possible behavior:
+
+### Far away
+
+A subdirectory may show:
+
+- its containing geometry
+- a few major internal shapes
+- strong file groups
+- highly salient items
+- no labels
+
+### Medium distance
+
+Show:
+
+- more internal files
+- recognizable file-type geometry
+- major groups
+- selected labels
+
+### Focused or entered
+
+Show:
+
+- individual important files
+- readable labels
+- detailed groups
+- subdirectory contents
+- relevant metadata
+
+Nested content should therefore become progressively clearer as the camera approaches it.
+
+This should feel like zooming into an existing world.
+
+It should not feel like waiting for a separate scene to load.
+
+---
+
+# 10. Camera and Perspective
 
 Although the interface is primarily 2.5D, the scene should still be rendered through a perspective-capable camera.
 
@@ -129,7 +301,7 @@ Orbit behavior may change:
 
 The normal working view should remain relatively shallow and easy to understand.
 
-Orbiting should allow the user to inspect the depth and structure of the current filesystem scene without transforming the program into a conventional 3D game or free-flight environment.
+Orbiting should allow the user to inspect the depth and nested structure of the current filesystem scene without transforming the program into a conventional 3D game or free-flight environment.
 
 The camera should provide an easy way to return to the standard useful viewing orientation.
 
@@ -146,7 +318,62 @@ The camera should avoid disorienting rotations.
 
 ---
 
-# 7. Motion and Animated Navigation
+# 11. Continuous Camera Navigation
+
+Navigation through filesystem hierarchy should primarily be expressed as camera motion through the nested scene.
+
+Entering a child directory should normally cause the camera to move toward and into the spatial region representing that directory.
+
+It should not normally cause an abrupt cut.
+
+The desired sequence is approximately:
+
+1. the selected subdirectory becomes the camera target
+2. the camera moves toward it
+3. the subdirectory grows naturally in apparent size because the camera is approaching it
+4. its previously visible internal objects become clearer
+5. the camera enters or settles within that directory's browsing scale
+6. labels and higher-detail geometry progressively become visible
+
+Likewise, navigating to the parent directory should feel like moving outward from the current diorama and revealing its surrounding parent environment.
+
+This creates spatial continuity.
+
+The user should gain an intuitive sense that:
+
+> "I was inside this part of that larger directory."
+
+rather than:
+
+> "The application replaced one screen with another."
+
+---
+
+# 12. Camera Cuts
+
+Abrupt camera cuts should be avoided for ordinary hierarchical navigation.
+
+Do not use cuts for:
+
+- entering a child directory
+- leaving for the parent directory
+- focusing a nearby file
+- opening a grouped series
+- focusing a nearby subdirectory
+
+A cut may be appropriate for exceptional cases such as:
+
+- jumping to an unrelated absolute path
+- following a search result in a distant filesystem location
+- restoring a saved location when continuity cannot reasonably be shown
+
+Even in these cases, a short transition may be preferable.
+
+Ordinary parent-child navigation must use continuous motion.
+
+---
+
+# 13. Motion and Animated Navigation
 
 Movement is an important part of the interface.
 
@@ -163,17 +390,13 @@ Examples include:
 - following search results
 - switching between important locations
 
-The animation should make the spatial relationship between the old and new context understandable.
+Animations should make the spatial relationship between old and new context understandable.
 
-For example, entering a directory may cause:
+For entering a subdirectory, the principal animation should be a spatial zoom or camera travel into that directory's already-existing graphical representation.
 
-1. the selected directory object to become the focal point
-2. the camera to move toward it
-3. surrounding items to shift or recede
-4. the directory's contents to expand into the new scene
-5. the camera to settle into the normal browsing orientation
+For leaving it, the animation should reverse that concept and reveal the parent context.
 
-Similarly, focusing on a particular file may cause a shorter camera translation and scale adjustment that visually centers the selected object while preserving surrounding context.
+Focusing a particular file should generally use a shorter camera translation and scale adjustment that centers or emphasizes the selected object while preserving nearby context.
 
 Animations should be:
 
@@ -183,13 +406,13 @@ Animations should be:
 - deterministic
 - not unnecessarily cinematic
 
-Responsiveness should take priority over visual spectacle.
+Responsiveness should take priority over spectacle.
 
-The user should be able to disable or reduce animations if desired.
+The user should eventually be able to disable or reduce animations if desired.
 
 ---
 
-# 8. Filesystem Data Model
+# 14. Filesystem Data Model
 
 The filesystem layer should represent items independently from the renderer.
 
@@ -215,9 +438,11 @@ A filesystem entry may contain information such as:
 
 Filesystem state must not be encoded directly in rendering objects.
 
+The model should naturally support parent-child hierarchy.
+
 ---
 
-# 9. Salience
+# 15. Salience
 
 Each file and directory should eventually receive a calculated salience score.
 
@@ -225,7 +450,7 @@ Salience represents the estimated probability that an item is relevant to the us
 
 Salience may influence:
 
-- distance from the visual focal region
+- position relative to the visual focal region
 - rendered size
 - label visibility
 - brightness
@@ -250,14 +475,13 @@ Possible inputs include:
 - whether the item appears generated
 - whether the item is hidden
 - whether the item appears to be a build artifact
-- whether the file is executable
 - frequency of user interaction
 
 The architecture must allow the scoring model to evolve without changing rendering code.
 
 ---
 
-# 10. Recency
+# 16. Recency
 
 Recently modified files should generally have higher visual prominence than very old files.
 
@@ -277,49 +501,179 @@ An old but frequently used file may remain more important than a newly generated
 
 ---
 
-# 11. File Series Detection
+# 17. File Type Geometry
+
+Files must not all use the same basic cube geometry.
+
+Color is one visual channel for file classification, but geometry should provide a second independent visual channel.
+
+Different semantic file categories should use distinct but visually compatible shapes.
+
+Possible categories include:
+
+- source code
+- plain text / notes
+- images
+- executable binaries
+- libraries
+- archives
+- configuration files
+- documents
+- media
+- symlinks
+- generated files
+- miscellaneous files
+
+The exact mapping should be refined through visual testing.
+
+Example conceptual mappings might include:
+
+- source/text: thin upright slab or document-like plate
+- image: wider rectangular panel
+- executable: compact heavier prism
+- archive: stacked or banded block
+- configuration: narrow technical marker
+- symlink: linked or offset shape
+- generated/build artifact: low-profile subdued object
+
+These are suggestions, not mandatory final shapes.
+
+The essential requirement is:
+
+> Different kinds of files should be distinguishable by shape as well as color.
+
+Shapes should remain simple and cheap to render.
+
+Do not create realistic icons or detailed models.
+
+---
+
+# 18. Shape Semantics
+
+Geometry should communicate purpose without overwhelming the scene.
+
+Shape categories should:
+
+- remain recognizable from oblique viewing angles
+- remain distinguishable when rendered small
+- work with wireframe or minimal solid rendering
+- not depend solely on labels
+- complement terminal-inspired color
+
+The semantic classification system should determine the shape category.
+
+The renderer should not contain file-extension heuristics.
+
+---
+
+# 19. File Series Detection
 
 The navigator should detect apparent file series.
 
 Examples include:
 
-- img1.png
-- img2.png
-- img3.png
+```text
+img1.png
+img2.png
+img3.png
+```
 
-or:
+```text
+frame_001.png
+frame_002.png
+frame_003.png
+```
 
-- frame_001.png
-- frame_002.png
-- frame_003.png
+```text
+older-note-0-draft.txt
+older-note-1-draft.txt
+older-note-2-draft.txt
+```
 
-or similar sequential naming schemes.
+Series detection must be based on the structure of the filename, not only a numeric suffix at the end of the full filename.
+
+For example, these should be recognized as a series:
+
+```text
+older-note-0-draft.txt
+older-note-1-draft.txt
+older-note-2-draft.txt
+```
+
+because the differing numeric token occurs within an otherwise common filename pattern.
 
 Possible indicators include:
 
-- common filename stem
-- numeric suffix
-- alphabetic suffix
+- common filename prefix
+- common filename suffix
 - common extension
+- one varying numeric or alphabetic token
+- sequential values
 - close timestamps
 - similar sizes
 
-Detected series should be represented as a cohesive visual object rather than consuming one unrelated object per file.
-
-Possible visual forms include:
-
-- segmented bars
-- stacked plates
-- ribbons
-- arcs
-- grouped towers
-- repeated geometric modules
-
-The group should be expandable so individual files remain accessible.
+The detection algorithm should initially favor deterministic transparent rules.
 
 ---
 
-# 12. Temporal Grouping
+# 20. File Series Must Form Compound Structures
+
+A detected file series should not merely be rendered as multiple independent file objects placed near one another.
+
+It should form a single visually cohesive compound structure.
+
+Use the analogy:
+
+> An individual file is a house.  
+> A file series is an apartment complex.
+
+The group should visibly read as one structure containing multiple members.
+
+Possible compound forms include:
+
+- repeated connected modules
+- segmented towers
+- joined plates
+- stepped terraces
+- rows sharing a common base
+- arcs sharing structural supports
+- ribbon-like complexes
+
+The exact design may evolve through experimentation.
+
+The key requirements are:
+
+- the group has an overall silhouette
+- the individual members remain visually represented
+- the members visibly belong to the same structure
+- the group consumes less visual clutter than unrelated individual objects
+- the group can expand or focus to expose individual members
+
+Simply assigning all members the same color or placing them close together is not sufficient.
+
+---
+
+# 21. Sequential Group Member Representation
+
+Individual members of a series should still be addressable.
+
+A compound series structure should preserve:
+
+- member count
+- ordering
+- individual selection
+- individual filename
+- individual metadata
+
+At normal viewing distance, the structure may act as one object.
+
+When focused or expanded, individual members should become selectable.
+
+This should resemble approaching an apartment building and then distinguishing individual units.
+
+---
+
+# 22. Temporal Grouping
 
 Files that appear to belong to the same work session or output batch may be visually grouped based on timestamps.
 
@@ -341,9 +695,11 @@ Other evidence may include:
 - common size range
 - common parent directory
 
+Temporal groups should eventually be visually cohesive, though not necessarily as strongly structured as explicit sequential file series.
+
 ---
 
-# 13. Structural and Functional Grouping
+# 23. Structural and Functional Grouping
 
 Later versions may infer relationships that are not apparent from naming or timestamps alone.
 
@@ -361,7 +717,7 @@ Early versions should favor transparent deterministic heuristics over complex cl
 
 ---
 
-# 14. Group Visualization
+# 24. Group Visualization
 
 Related files should appear as cohesive shapes or visually connected structures.
 
@@ -376,14 +732,17 @@ Methods may include:
 - subtle connector lines
 - compact arrangement
 - shared highlight behavior
+- repeated modules within a shared superstructure
 
 Grouping should reduce clutter without making individual files inaccessible.
 
 A group should support expansion and collapse.
 
+For explicit filename sequences, a compound structural representation is preferred over loose clustering.
+
 ---
 
-# 15. Large Directory Handling
+# 25. Large Directory Handling
 
 Large directories must not consume a disproportionate amount of the visible scene.
 
@@ -405,20 +764,22 @@ Example:
 A directory containing 1,000 files might display:
 
 - the 10 most salient files individually
-- several detected series
+- several detected series as compound structures
 - one cluster of older files
 - one cluster of build artifacts
 - one cluster of miscellaneous low-salience files
 
 The layout engine should have explicit density limits.
 
+Nested directory visualization must respect these limits so that upstream views do not become excessively dense.
+
 ---
 
-# 16. Progressive Disclosure
+# 26. Progressive Disclosure
 
-The amount of detail shown should depend on user focus.
+The amount of detail shown should depend on user focus and camera scale.
 
-An unfocused directory may be represented compactly.
+An unfocused directory may be represented compactly while still showing a reduced representation of its contents.
 
 A focused directory may reveal:
 
@@ -428,13 +789,13 @@ A focused directory may reveal:
 - detected groups
 - internal structure
 
-Entering the directory may reveal its complete local context.
+Entering the directory should reveal greater detail through spatial zoom and level-of-detail changes.
 
-This should reduce visual overload while maintaining discoverability.
+This should reduce visual overload while maintaining continuity.
 
 ---
 
-# 17. Low-Interest and Generated Files
+# 27. Low-Interest and Generated Files
 
 Files that users are unlikely to select directly should generally receive reduced visual prominence.
 
@@ -458,7 +819,7 @@ If a supposedly low-interest file is repeatedly selected or opened, it should be
 
 ---
 
-# 18. Terminal-Inspired File Colors
+# 28. Terminal-Inspired File Colors
 
 File and directory colors should be inspired by conventional terminal file coloring.
 
@@ -487,31 +848,34 @@ Color assignment should occur through a theme or semantic styling system.
 
 ---
 
-# 19. Geometry and Shapes
+# 29. Geometry and Shapes
 
-Different semantic categories may use different basic geometry.
+Different semantic categories should use different simple geometry.
 
 Examples:
 
 Directory:
+- floor plane plus backdrop
 - platform
 - frame
 - container
-- gateway-like structure
+- gateway-like region
 
 Individual file:
-- simple plate
+- slab
 - prism
-- marker
+- plate
 - tile
+- marker
 
-Series:
-- segmented ribbon
-- stack
-- arc
-- repeated structure
+Sequential series:
+- compound structure
+- segmented tower
+- joined stack
+- shared-base complex
+- repeated connected modules
 
-Cluster:
+Other cluster:
 - grouped low-detail geometry
 
 The program should use simple geometry rather than detailed 3D models.
@@ -520,7 +884,38 @@ Shape should complement color rather than rely on color alone.
 
 ---
 
-# 20. Labels
+# 30. Nested Layout
+
+Layout must support parent-relative coordinate systems or equivalent hierarchical transforms.
+
+A subdirectory's position and scale should be defined within the coordinate space of its parent.
+
+Its contents should then be positioned within the subdirectory's own local space.
+
+For example:
+
+```text
+root local coordinates
+    projects directory transform
+        project-A directory transform
+            source.cpp transform
+            notes.txt transform
+```
+
+This hierarchical representation is preferred because it naturally supports:
+
+- nested dioramas
+- camera zoom into children
+- zoom back to parents
+- scalable depth
+- consistent animation
+- level-of-detail control
+
+The implementation need not literally use a traditional scene graph if another architecture is cleaner, but the behavior should be equivalent.
+
+---
+
+# 31. Labels
 
 Text must remain highly legible.
 
@@ -534,14 +929,19 @@ Label visibility may depend on:
 - focus
 - distance
 - zoom level
+- nesting depth
 
 Important or selected files should receive clear labels.
 
 Dense low-salience regions may use abbreviated labels or none until focused.
 
+Nested files may be visible as geometry long before their labels become readable.
+
+That is expected behavior.
+
 ---
 
-# 21. Interaction
+# 32. Interaction
 
 The application should support both keyboard and mouse operation.
 
@@ -569,9 +969,11 @@ Keyboard-first use should be practical.
 
 Mouse interaction should remain intuitive.
 
+Double-clicking or activating a subdirectory should initiate the continuous zoom/navigation transition into the nested directory representation.
+
 ---
 
-# 22. Conventional UI
+# 33. Conventional UI
 
 Dear ImGui or equivalent lightweight UI may be used for non-spatial interface elements.
 
@@ -591,7 +993,7 @@ The conventional interface should complement the spatial scene rather than domin
 
 ---
 
-# 23. Search
+# 34. Search
 
 Search should eventually integrate with the spatial visualization.
 
@@ -609,7 +1011,7 @@ Initial implementation may use direct directory search before introducing broade
 
 ---
 
-# 24. Navigation History
+# 35. Navigation History
 
 The navigator should maintain:
 
@@ -618,13 +1020,13 @@ The navigator should maintain:
 - recent locations
 - optional bookmarks
 
-History should integrate with animated navigation.
+History should integrate with animated spatial navigation.
 
 Returning to a previous location should ideally restore a sensible previous camera and layout state.
 
 ---
 
-# 25. Responsiveness
+# 36. Responsiveness
 
 The rendering loop must not be blocked by expensive filesystem operations.
 
@@ -643,7 +1045,7 @@ The interface should remain interactive during background work.
 
 ---
 
-# 26. Performance Principles
+# 37. Performance Principles
 
 Important rules:
 
@@ -653,14 +1055,16 @@ Important rules:
 4. Cache layout calculations where practical.
 5. Rebuild layout only when needed.
 6. Avoid expensive allocations inside the render loop.
-7. Render only visible or relevant objects.
+7. Render only relevant detail.
 8. Use simple geometry.
 9. Treat large directories explicitly.
-10. Profile before introducing complicated optimizations.
+10. Use level-of-detail simplification for nested scenes.
+11. Do not assume every visible nested file requires full geometry or a label.
+12. Profile before introducing complicated optimizations.
 
 ---
 
-# 27. Filesystem Safety
+# 38. Filesystem Safety
 
 The application will eventually support file operations.
 
@@ -691,7 +1095,7 @@ These should not crash the application.
 
 ---
 
-# 28. Architecture
+# 39. Architecture
 
 The project should maintain clear subsystem boundaries.
 
@@ -730,15 +1134,16 @@ Should not render anything.
 
 ## layout/
 
-Turns analyzed filesystem data into spatial arrangements.
+Turns analyzed filesystem data into nested spatial arrangements.
 
 Produces information such as:
 
-- position
+- parent-relative position
 - scale
 - depth
 - group bounds
 - orientation
+- nested transforms
 
 Should not perform filesystem traversal.
 
@@ -771,7 +1176,7 @@ Implements:
 
 ---
 
-# 29. Camera Architecture
+# 40. Camera Architecture
 
 Camera state should be separated from filesystem state.
 
@@ -795,13 +1200,17 @@ Navigation code may request:
 
 > focus this spatial object
 
+or:
+
+> enter this child directory
+
 The camera system should determine how to animate toward the corresponding target.
 
 Filesystem logic should not directly manipulate camera matrices.
 
 ---
 
-# 30. Animation Architecture
+# 41. Animation Architecture
 
 Animations should not be scattered throughout rendering code.
 
@@ -826,14 +1235,17 @@ Possible animated properties include:
 - object scale
 - object opacity
 - group expansion
+- level-of-detail transition
 
 Prefer simple easing functions.
 
 Avoid introducing a large animation framework.
 
+Parent-child navigation must use this transition system rather than abruptly replacing the visible scene.
+
 ---
 
-# 31. Configuration
+# 42. Configuration
 
 Later versions may expose configurable parameters such as:
 
@@ -847,12 +1259,14 @@ Later versions may expose configurable parameters such as:
 - color theme
 - maximum individually rendered items
 - hidden-file treatment
+- nested rendering depth
+- level-of-detail thresholds
 
 Defaults should work well without configuration.
 
 ---
 
-# 32. Adaptation and User Behavior
+# 43. Adaptation and User Behavior
 
 Long-term versions may adapt to actual user behavior.
 
@@ -872,23 +1286,24 @@ If user history is recorded, the implementation should be transparent and local.
 
 ---
 
-# 33. Non-Goals
+# 44. Non-Goals
 
 Initial versions are not intended to:
 
 - replace every feature of mature desktop file managers
 - replicate a full desktop shell
-- render the entire filesystem simultaneously
+- render the entire filesystem at full detail simultaneously
 - become a general-purpose 3D engine
 - use machine learning unnecessarily
 - depend on network services
 - require cloud connectivity
 - require a database server
 - imitate the original FSN pixel-for-pixel
+- use abrupt scene replacement as the normal model for directory navigation
 
 ---
 
-# 34. Milestone 1 — Rendering Foundation
+# 45. Milestone 1 — Rendering Foundation
 
 Goal:
 
@@ -910,7 +1325,7 @@ Requirements:
 12. Implement zoom.
 13. Implement limited yaw/pitch orbit around the current focal point.
 14. Implement reset-view behavior.
-15. Implement one simple animated camera transition between mock directory objects.
+15. Implement one simple animated camera transition.
 16. Handle resizing correctly.
 17. Handle clean shutdown.
 18. Document required Void Linux packages.
@@ -918,45 +1333,80 @@ Requirements:
 
 Do not access the real filesystem yet.
 
-The purpose of Milestone 1 is to validate:
-
-- rendering architecture
-- camera architecture
-- orbit behavior
-- animation behavior
-- visual style
-
 ---
 
-# 35. Milestone 2 — Mock Spatial Filesystem
+# 46. Milestone 2 — Mock Spatial Filesystem
 
 Use an in-memory fake filesystem.
 
-Add:
+The purpose of Milestone 2 is to validate the spatial metaphor before adding real filesystem complexity.
 
-- mock directories
-- mock files
-- mock timestamps
-- mock file types
-- mock series
-- mock large directory
-- mock several layers of nested directories
+The mock filesystem should include:
 
-Implement:
+- multiple nested directory levels
+- ordinary standalone files
+- several semantic file types
+- recent and old files
+- generated or low-salience files
+- filename sequences
+- temporal groups
+- at least one dense directory
 
-- spatial layout
-- basic salience
-- terminal-inspired colors
-- directory focusing
-- animated directory transitions
-- file focusing
-- group rendering
+Milestone 2 should demonstrate:
 
-The purpose is to validate visualization and interaction before introducing real filesystem complexity.
+## Nested directory dioramas
+
+Subdirectories should visibly contain representations of their children.
+
+At least one subdirectory should contain another visible subdirectory.
+
+The user should be able to see reduced representations of nested contents from the parent view.
+
+## Continuous directory navigation
+
+Entering a child directory must zoom or move into the already-visible nested representation.
+
+Do not replace the parent scene with an abrupt cut.
+
+Navigating back to the parent should zoom outward and restore the larger context.
+
+## File-type geometry
+
+Files of different semantic categories should use visibly different simple geometric forms in addition to their different colors.
+
+Do not render every standalone file as the same cube.
+
+## Sequential file compound structures
+
+Filename sequences must be detected and rendered as cohesive compound structures.
+
+For example:
+
+```text
+older-note-0-draft.txt
+older-note-1-draft.txt
+older-note-2-draft.txt
+```
+
+should appear as members of one compound structure rather than unrelated cubes.
+
+## Salience
+
+Implement basic deterministic salience.
+
+## Terminal-inspired colors
+
+Retain semantic terminal-inspired coloring.
+
+## Grouping
+
+Implement initial grouping without introducing complex machine learning or opaque heuristics.
+
+Milestone 2 is not complete if the mock filesystem exists but these visual and navigation behaviors are absent.
 
 ---
 
-# 36. Milestone 3 — Real Filesystem Integration
+# 47. Milestone 3 — Real Filesystem Integration
 
 Introduce the real filesystem backend.
 
@@ -970,19 +1420,28 @@ Implement:
 - hidden files
 - error handling
 
-Populate the existing spatial model from real directory contents.
+Populate the existing nested spatial model from real directory contents.
 
 Do not yet implement destructive file operations.
 
+The real filesystem implementation should preserve:
+
+- nested directory dioramas
+- continuous parent-child camera navigation
+- series grouping
+- semantic shapes
+- salience-based layout
+
 ---
 
-# 37. Milestone 4 — Salience and Grouping
+# 48. Milestone 4 — Salience and Grouping
 
-Implement initial heuristics for:
+Refine heuristics for:
 
 - modification recency
 - generated-file deweighting
 - series detection
+- embedded numeric sequence detection
 - temporal grouping
 - directory density handling
 - progressive summarization
@@ -997,7 +1456,7 @@ Validate behavior using directories containing:
 
 ---
 
-# 38. Milestone 5 — Practical File Navigation
+# 49. Milestone 5 — Practical File Navigation
 
 Add:
 
@@ -1015,14 +1474,17 @@ At this point the program should begin functioning as a practical file browser.
 
 ---
 
-# 39. Milestone 6 — Refinement
+# 50. Milestone 6 — Refinement
 
 Improve:
 
-- layout stability
+- nested layout stability
+- hierarchical level-of-detail
 - performance
 - animation
 - camera feel
+- semantic geometry
+- compound sequence structures
 - grouping
 - theme system
 - large-directory behavior
@@ -1032,8 +1494,18 @@ Add profiling and stress testing.
 
 ---
 
-# 40. Guiding Principle
+# 51. Guiding Principles
 
 The visual layout should express inferred importance and relationship rather than merely mapping directory contents one-to-one onto screen objects.
 
-The scene should feel spatial, animated, and explorable while remaining useful as a real filesystem navigator.
+Hierarchy should be spatially continuous.
+
+A directory should feel like a place containing other places and objects.
+
+Entering a child directory should feel like moving into an existing part of the scene.
+
+Different kinds of files should be recognizable by geometry as well as color.
+
+Sequential files should behave visually like units within one compound structure rather than unrelated standalone objects.
+
+The scene should feel spatial, animated, nested, and explorable while remaining useful as a real filesystem navigator.

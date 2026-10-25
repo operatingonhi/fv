@@ -21,8 +21,8 @@ inline Mat4 operator*(const Mat4& a, const Mat4& b) {
                 result[c*4+r] += a[k*4+r]*b[c*4+k];
     return result;
 }
-inline Mat4 perspective(float aspect) {
-    const float f=1.0f/std::tan(0.78539816f/2.0f), near=0.1f, far=150.0f;
+inline Mat4 perspective(float aspect,float near=0.1f,float far=150.0f) {
+    const float f=1.0f/std::tan(0.78539816f/2.0f);
     return {f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)/(near-far),-1,
             0,0,2*far*near/(near-far),0};
 }

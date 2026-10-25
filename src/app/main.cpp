@@ -168,7 +168,10 @@ int main(int argc,char** argv) {
                 if (frames==40) SDL_SetWindowSize(runtime.window,960,640);
                 if (frames==50) { act({spatial::ActionKind::Up}); act({spatial::ActionKind::Reset}); }
             }
-            browser.camera.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
+            const auto revision=browser.scene_revision;
+            browser.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
+            if (browser.scene_revision!=revision)
+                renderer.set_scene(browser.scene.boxes,browser.scene.grid_origin);
             int width=0,height=0;
             SDL_GL_GetDrawableSize(runtime.window,&width,&height);
             if (width>0 && height>0 && !(SDL_GetWindowFlags(runtime.window)&SDL_WINDOW_MINIMIZED)) {

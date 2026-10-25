@@ -2,23 +2,28 @@
 #include "ui/overlay.hpp"
 
 namespace spatial {
-// Application orchestration: connects semantic navigation, layout, presentation,
-// and camera requests. No window or OpenGL dependency, so it is unit-testable.
+// Coordinates live in one persistent hierarchy. Navigation only changes the
+// active node and asks the existing camera to move to its world-space transform.
 class Browser {
 public:
     Browser();
     MockFilesystem filesystem=make_mock_filesystem();
     Navigation navigation;
+    Hierarchy hierarchy;
     Layout layout;
     Presentation scene;
     Camera camera;
     bool animations=true;
     std::size_t scene_revision=0;
+    NodeId current_node() const { return current_; }
     void act(UiAction action);
+    void update(float seconds);
 private:
-    void rebuild();
+    void sync_view();
+    void refresh_scene();
     void focus_overview();
-    Vec3 origin_{};
-    std::vector<Vec3> parent_origins_;
+    NodeId current_=0;
+    std::vector<NodeId> parents_;
+    std::vector<unsigned char> levels_,scratch_levels_;
 };
 }

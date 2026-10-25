@@ -15,8 +15,9 @@ Layout arrange(std::span<const Item> items,std::size_t page,Vec3 origin,const La
         const auto index=result.objects.size(), column=index%columns;
         // Highest-ranked objects start at the center/front, then alternate left/right.
         const float x=column==0 ? 0.0f:static_cast<float>((column+1)/2)*(column%2 ? -1.0f:1.0f);
-        const float size=0.9f+0.8f*item.salience;
-        const float height=item.category==Category::Directory ? 1.5f:0.35f+0.8f*item.salience;
+        const bool container=item.category==Category::Directory || item.group!=GroupKind::None;
+        const float size=container ? 1.8f+0.5f*item.salience:0.9f+0.8f*item.salience;
+        const float height=container ? size*0.22f:0.35f+0.8f*item.salience;
         result.objects.push_back({std::move(item),origin+Vec3{x*spacing,height/2,3.0f-static_cast<float>(index/columns)*spacing},
             {size,height,size}});
     };

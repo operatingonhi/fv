@@ -6,6 +6,8 @@
 
 namespace spatial {
 enum class Category { Directory, Text, Source, Image, Media, Archive, Executable, Binary, Generated, Mixed };
+enum class FileShape { Diorama, Document, ImagePanel, MediaPanels, ArchiveStack, LowTile, Prism };
+FileShape file_shape(Category category);
 enum class GroupKind { None, Series, Related, Summary };
 struct AnalysisConfig {
     double recency_half_life=7*86400.0;

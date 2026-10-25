@@ -74,5 +74,19 @@ int main() {
     check(near(camera.state().distance,Camera::max_distance),"Requested focus distance has upper bound");
     camera.focus({},false,0);
     check(near(camera.state().distance,Camera::min_distance),"Requested focus distance has lower bound");
+    camera.focus({2,0,-1},false,0.24f,0.01f);
+    check(near(camera.state().distance,0.24f),"Nested browsing distance is not clamped to root-scale minimum");
+    camera.zoom(10000);
+    check(near(camera.state().distance,Camera::min_distance*0.01f),"Zoom minimum follows nested scale");
+    camera.zoom(-10000);
+    check(near(camera.state().distance,Camera::max_distance*0.01f),"Zoom maximum follows nested scale");
+    camera.orbit(100,100);
+    check(near(camera.state().yaw,Camera::max_yaw) && near(camera.state().pitch,Camera::max_pitch),"Nested orbit retains existing angular limits");
+    for (float value:camera.view_projection(1)) check(std::isfinite(value),"Nested clipping produces a finite matrix");
+    camera.focus({},true,24,1);
+    const float start_distance=camera.state().distance;
+    camera.update(0.2f);
+    check(camera.state().distance>start_distance && camera.state().distance<24 &&
+        camera.state().scale>0.01f && camera.state().scale<1,"Parent navigation interpolates scale and distance");
     std::cout<<"Camera tests passed\n";
 }

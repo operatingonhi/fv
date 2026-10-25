@@ -23,7 +23,7 @@ target_compile_options(camera PRIVATE -Wall -Wextra -Wpedantic)
 
 add_library(mock-browser STATIC
     src/filesystem/mock_filesystem.cpp src/analysis/analysis.cpp
-    src/layout/layout.cpp src/navigation/navigation.cpp
+    src/layout/layout.cpp src/layout/hierarchy.cpp src/navigation/navigation.cpp
     src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp)
 target_link_libraries(mock-browser PUBLIC camera)
 target_compile_options(mock-browser PRIVATE -Wall -Wextra -Wpedantic)

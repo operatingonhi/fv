@@ -9,7 +9,7 @@ void Camera::orbit(float yaw_delta, float pitch_delta) {
 }
 void Camera::zoom(float steps) {
     duration_=elapsed_=0;
-    current_.distance=std::clamp(current_.distance*std::exp(-steps*0.12f),min_distance,max_distance);
+    current_.distance=std::clamp(current_.distance*std::exp(-steps*0.12f),min_distance*current_.scale,max_distance*current_.scale);
 }
 void Camera::transition(CameraState target, bool animate) {
     start_=current_;
@@ -18,10 +18,11 @@ void Camera::transition(CameraState target, bool animate) {
     duration_=animate ? 0.4f : 0.0f;
     if (!animate) current_=target;
 }
-void Camera::focus(Vec3 target, bool animate, float distance) {
+void Camera::focus(Vec3 target, bool animate, float distance, float scale) {
     CameraState next;
     next.focus=target;
-    next.distance=std::clamp(distance,min_distance,max_distance);
+    next.scale=std::max(scale,0.000001f);
+    next.distance=std::clamp(distance,min_distance*next.scale,max_distance*next.scale);
     transition(next,animate);
 }
 void Camera::reset(bool animate) { transition(CameraState{},animate); }
@@ -34,6 +35,7 @@ void Camera::update(float seconds) {
     current_.yaw=mix(start_.yaw,target_.yaw);
     current_.pitch=mix(start_.pitch,target_.pitch);
     current_.distance=mix(start_.distance,target_.distance);
+    current_.scale=mix(start_.scale,target_.scale);
 }
 Vec3 Camera::eye() const {
     const float horizontal=current_.distance*std::cos(current_.pitch);
@@ -41,6 +43,6 @@ Vec3 Camera::eye() const {
         current_.distance*std::sin(current_.pitch),horizontal*std::cos(current_.yaw)};
 }
 Mat4 Camera::view_projection(float aspect) const {
-    return perspective(aspect)*look_at(eye(),current_.focus);
+    return perspective(aspect,current_.distance*0.002f,current_.distance*50.0f)*look_at(eye(),current_.focus);
 }
 }

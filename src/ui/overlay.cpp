@@ -71,6 +71,8 @@ void scene_labels(const Presentation& scene,const Camera& camera,float left,floa
         if (!label.visible || label.selected!=selected) continue;
         const auto point=project(label.anchor,matrix,width,height);
         if (!point) continue;
+        const auto edge=project(label.anchor+Vec3{label.extent,0,0},matrix,width,height);
+        if (!label.selected && (!edge || std::abs(edge->x-point->x)<12.0f)) continue;
         const auto size=ImGui::CalcTextSize(label.text.c_str());
         const ImVec2 pos{left+point->x-size.x/2,point->y-size.y};
         const ImVec4 rect{pos.x-3,pos.y-2,pos.x+size.x+3,pos.y+size.y+2};

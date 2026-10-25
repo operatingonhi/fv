@@ -19,6 +19,7 @@ public:
     void select(std::size_t index,std::size_t count);
     void next(std::size_t count);
     void page(int delta,std::size_t count);
+    void restore_page(std::size_t page) { current_.page=page; current_.selected=0; }
     bool open(const MockFilesystem& fs,const Item& item);
     bool up();
     bool can_go_up() const { return !parents_.empty(); }
