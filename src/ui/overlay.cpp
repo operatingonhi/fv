@@ -85,7 +85,7 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     if (!state.focus_search && state.search!=browser.query().text && !ImGui::GetIO().WantTextInput) state.search=browser.query().text;
     ImGui::SetNextWindowPos({8,8},ImGuiCond_Always);
     ImGui::SetNextWindowSize({panel_width-16,ImGui::GetIO().DisplaySize.y-16},ImGuiCond_Always);
-    ImGui::Begin("Spatial navigator",nullptr,ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoCollapse);
+    ImGui::Begin("Spatial navigator",nullptr,ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoTitleBar);
     ImGui::BeginDisabled(!browser.history.can_back());
     if (ImGui::Button("Back")) action={ActionKind::Back};
     ImGui::EndDisabled(); ImGui::SameLine();
@@ -144,7 +144,7 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
             auto color=semantic_color(item.category)*(eligible ? 1.0f:0.25f);
             ImGui::PushID(static_cast<int>(i)); ImGui::PushStyleColor(ImGuiCol_Text,ImVec4{color.x,color.y,color.z,1});
             ImGui::BeginDisabled(!eligible);
-            auto label=item.label+(item.group==GroupKind::None ? "":" ["+std::to_string(item.members.size())+"]");
+            auto label=display_name(item.label)+(item.group==GroupKind::None ? "":" ["+std::to_string(item.members.size())+"]");
             if (item.group==GroupKind::None) {
                 const auto& entry=fs.entry(item.members.front());
                 if (!entry.error.empty() || fs.state(entry.id).state==LoadState::Error) label+=" (unavailable)";
@@ -163,7 +163,26 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     ImGui::SameLine(); if (ImGui::Button("Terminal here")) action={ActionKind::Terminal};
     if (ImGui::Button("Activate (Enter)")) action={ActionKind::Open,nav.selected()};
     ImGui::SameLine(); if (ImGui::Button("Reset (R)")) action={ActionKind::Reset};
-    ImGui::Checkbox("Animate navigation",&browser.animations);
+    if (ImGui::Button("Settings")) ImGui::OpenPopup("Settings");
+    if (ImGui::BeginPopup("Settings")) {
+        ImGui::TextUnformatted("Session settings");
+        ImGui::Checkbox("Animate navigation",&browser.animations);
+        ImGui::SliderFloat("Duration (seconds)",&browser.camera.animation_duration,0.0f,0.8f,"%.2f");
+        ImGui::SliderFloat("Orbit sensitivity",&browser.camera.orbit_sensitivity,0.2f,3.0f);
+        ImGui::SliderFloat("Zoom sensitivity",&browser.camera.zoom_sensitivity,0.2f,3.0f);
+        int depth=static_cast<int>(browser.presentation_config.nested_depth);
+        int labels=static_cast<int>(browser.presentation_config.label_limit);
+        bool changed=ImGui::SliderInt("Nested detail depth",&depth,1,6);
+        changed=ImGui::SliderInt("Label density",&labels,0,20) || changed;
+        if (changed) {
+            browser.presentation_config.nested_depth=static_cast<unsigned>(depth);
+            browser.presentation_config.label_limit=static_cast<std::size_t>(labels);
+            browser.configure_presentation();
+        }
+        ImGui::Text("Preparation: %.3f ms / %zu boxes / %zu labels",browser.preparation_ms,browser.scene.boxes.size(),browser.scene.labels.size());
+        ImGui::TextWrapped("Changes apply this session. Hidden entries are controlled in Filters.");
+        ImGui::EndPopup();
+    }
     if (state.inspector) {
         ImGui::SeparatorText("Metadata");
         if (ImGui::BeginChild("Metadata details",{0,200},ImGuiChildFlags_Borders)) inspector(browser);
@@ -192,8 +211,26 @@ void scene_labels(const Presentation& scene,const Camera& camera,float left,floa
         if (!point) continue;
         const auto edge=project(label.anchor+Vec3{label.extent,0,0},matrix,width,height);
         if (!label.selected && (!edge || std::abs(edge->x-point->x)<12.0f)) continue;
-        const auto size=ImGui::CalcTextSize(label.text.c_str());
-        const ImVec2 pos{left+point->x-size.x/2,point->y-size.y};
+        // Long selected names stay visible inside the spatial viewport. The
+        // sidebar inspector retains the complete filename and path.
+        const char* text=label.text.c_str();
+        std::string shortened;
+        auto size=ImGui::CalcTextSize(text);
+        if (label.selected && size.x>width-12) {
+            shortened=label.text;
+            const auto suffix_width=ImGui::CalcTextSize("...").x;
+            while (!shortened.empty() && ImGui::CalcTextSize(shortened.c_str()).x+suffix_width>width-12) {
+                auto end=shortened.size()-1;
+                while (end>0 && (static_cast<unsigned char>(shortened[end])&0xc0)==0x80) --end;
+                shortened.resize(end);
+            }
+            shortened+="..."; text=shortened.c_str(); size=ImGui::CalcTextSize(text);
+        }
+        ImVec2 pos{left+point->x-size.x/2,point->y-size.y};
+        if (label.selected) {
+            pos.x=std::clamp(pos.x,left+3,std::max(left+3,left+width-size.x-3));
+            pos.y=std::clamp(pos.y,2.0f,std::max(2.0f,height-size.y-2));
+        }
         const ImVec4 rect{pos.x-3,pos.y-2,pos.x+size.x+3,pos.y+size.y+2};
         if (rect.x<left || rect.z>left+width || rect.y<0 || rect.w>height) continue;
         bool overlaps=false;
@@ -203,7 +240,7 @@ void scene_labels(const Presentation& scene,const Camera& camera,float left,floa
         if (overlaps) continue;
         if (count<occupied.size()) occupied[count++]=rect;
         draw->AddRectFilled({rect.x,rect.y},{rect.z,rect.w},IM_COL32(4,7,10,220));
-        draw->AddText(pos,ImGui::ColorConvertFloat4ToU32({label.color.x,label.color.y,label.color.z,1}),label.text.c_str());
+        draw->AddText(pos,ImGui::ColorConvertFloat4ToU32({label.color.x,label.color.y,label.color.z,1}),text);
     }
     draw->PopClipRect();
 }

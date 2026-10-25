@@ -199,14 +199,14 @@ void density_and_disclosure() {
     Item valuable; valuable.label="important.cpp"; valuable.category=Category::Source; valuable.salience=0.9f; valuable.members={21};
     stable.push_back(valuable);
     const auto after=arrange(stable);
-    for (std::size_t i=0;i<20;++i) check(before.objects[i].center.x==after.objects[i].center.x && before.objects[i].center.z==after.objects[i].center.z,"Importance disclosure does not reshuffle existing layout");
+    for (std::size_t i=0;i<19;++i) check(before.objects[i].center.x==after.objects[i].center.x && before.objects[i].center.z==after.objects[i].center.z,"Importance disclosure does not reshuffle existing layout");
     const auto& summary=after.objects.back();
-    check(summary.item.members.front()==21 && summary.item.explanation.find("important.cpp")!=std::string::npos && after.detail_rank.back()==0,
+    check(summary.item.members.front()==21 && summary.item.members.size()==2 && summary.item.explanation.find("important.cpp")!=std::string::npos && after.detail_rank.back()==0,
         "High-salience omitted entry is discoverable through a prioritized, ranked remainder summary");
     auto page=arrange(stable,1);
     std::set<EntryId> all;
     for (const auto& object:page.objects) all.insert(object.item.members.begin(),object.item.members.end());
-    check(all.size()==21 && page.objects.size()<=21,"Bounded page and summary retain all entries");
+    check(all.size()==21 && page.objects.size()<=20,"Bounded page and summary retain all entries");
     check(disclosure_level(0.0021f,0)==0 && disclosure_level(0.0021f,1)==1,"Medium-distance hysteresis avoids flicker");
     check(disclosure_level(0.018f,1)==1 && disclosure_level(0.018f,2)==2,"Close-detail hysteresis avoids flicker");
     check(disclosure_level(0.1f,0)==2 && disclosure_level(0.0001f,2)==0,"Approaching reveals detail and retreat simplifies it");

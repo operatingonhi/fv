@@ -1,5 +1,6 @@
 #include "app/browser.hpp"
 #include <chrono>
+#include <atomic>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -118,6 +119,27 @@ void errors(const fs::path& root) {
     DirectoryListing gone;
     cache.apply(0,std::move(gone));
     check(!named(cache,0,"readme.txt").error.empty(),"Entry removed between preview/full read remains explicitly marked");
+}
+void enumeration_churn(const fs::path& root) {
+    const auto path=root/"churn";
+    fs::create_directory(path);
+    for (int i=0;i<300;++i) write(path/("entry-"+std::to_string(i)+".txt"));
+    write(path/std::string(240,'x')); write(path/"line\nbreak\t.txt"); write(path/"-leading dash.txt");
+    const auto unusual=read_directory(path);
+    check(unusual.entries.size()==303,"Long and unusual valid filenames enumerate intact");
+    std::atomic<bool> scanning=false;
+    std::jthread remover([&] {
+        while (!scanning.load()) std::this_thread::yield();
+        for (int i=0;i<300;++i) {
+            std::error_code ec; fs::remove(path/("entry-"+std::to_string(i)+".txt"),ec);
+        }
+    });
+    scanning=true;
+    const auto listing=read_directory(path);
+    remover.join();
+    Filesystem cache(path.string()); cache.apply(0,listing);
+    for (auto id:cache.children(0)) check(!cache.entry(id).full_path.empty(),"Concurrent disappearance retains path/error metadata");
+    check(read_directory(path).entries.size()==3,"Concurrent removal stays confined to its bounded fixture");
 }
 void sequences_and_large_directory(const fs::path& root) {
     fs::create_directory(root/"sequences");
@@ -266,7 +288,7 @@ void milestone4_mixture(const fs::path& root) {
 int main() {
     try {
         TemporaryDirectory temporary;
-        enumeration(temporary.path); errors(temporary.path); sequences_and_large_directory(temporary.path); loading_regressions(temporary.path); milestone4_mixture(temporary.path);
+        enumeration(temporary.path); errors(temporary.path); enumeration_churn(temporary.path); sequences_and_large_directory(temporary.path); loading_regressions(temporary.path); milestone4_mixture(temporary.path);
         std::cout<<"Real filesystem tests passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

@@ -66,9 +66,12 @@ void Browser::update_status() {
     if (!deferred_.empty()) status+=" | Return to parent to apply ready updates";
 }
 void Browser::refresh_scene() {
+    const auto started=std::chrono::steady_clock::now();
     if (query_dirty_) { rebuild_query(); reconcile_selection(); }
     detail_levels(hierarchy,camera,levels_);
-    scene=present(hierarchy,current_,navigation.selected(),levels_,appearances_);
+    last_lod_camera_=camera.state(); ++lod_evaluations;
+    scene=present(hierarchy,current_,navigation.selected(),levels_,appearances_,presentation_config);
+    preparation_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
     ++scene_revision;
 }
 void Browser::sync_view() {
@@ -132,8 +135,11 @@ void Browser::update(float seconds) {
     }
     if (status_changed) update_status();
     camera.update(seconds);
-    detail_levels(hierarchy,camera,scratch_levels_,levels_);
-    if (scratch_levels_!=levels_) refresh_scene();
+    if (camera.state()!=last_lod_camera_) {
+        detail_levels(hierarchy,camera,scratch_levels_,levels_);
+        last_lod_camera_=camera.state(); ++lod_evaluations;
+        if (scratch_levels_!=levels_) refresh_scene();
+    }
 }
 const Item* Browser::selected_item() const {
     return navigation.selected()<layout.objects.size() ? &layout.objects[navigation.selected()].item:nullptr;
@@ -191,7 +197,7 @@ void Browser::move(Direction direction) {
 }
 void Browser::next_match(bool reverse) {
     if (matches_.empty()) { notice="No matching objects in cached scope"; return; }
-    const auto page_size=std::max<std::size_t>(1,hierarchy.layout_config.page_size);
+    const auto page_size=page_capacity(hierarchy.node(current_).items.size(),hierarchy.layout_config);
     auto next=reverse ? matches_.back():matches_.front();
     if (const auto* item=selected_item();item && item->group!=GroupKind::Summary) {
         const auto global=layout.page*page_size+navigation.selected();
@@ -219,13 +225,11 @@ void Browser::act(UiAction action) {
     case ActionKind::Below: move(Direction::Down); break;
     case ActionKind::Next:
     case ActionKind::Previous: {
-        const auto count=layout.objects.size();
-        if (!count) return;
-        auto index=navigation.selected()==no_selection ? (action.kind==ActionKind::Next ? count-1:0):navigation.selected();
-        for (std::size_t n=0;n<count;++n) {
-            index=action.kind==ActionKind::Next ? (index+1)%count:(index+count-1)%count;
-            if (eligible(layout.objects[index].item)) { select(index,true); break; }
-        }
+        if (layout.pages<=1) return;
+        const bool reverse=action.kind==ActionKind::Previous;
+        const auto page=reverse ? (layout.page+layout.pages-1)%layout.pages:(layout.page+1)%layout.pages;
+        hierarchy.set_page(current_,page); navigation.restore_page(page);
+        sync_view(); schedule_previews();
         break;
     }
     case ActionKind::Open: {

@@ -64,6 +64,7 @@ void main() { pixel=vec4(tint,1.0); }
 }
 void Renderer::set_scene(std::span<const SceneBox> boxes,Vec3 grid_origin) {
     std::vector<Vertex> vertices;
+    vertices.reserve(116+boxes.size()*24);
     const auto line=[&](Vec3 a,Vec3 b,Vec3 color) {
         vertices.push_back({a,color}); vertices.push_back({b,color});
     };

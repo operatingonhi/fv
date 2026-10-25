@@ -111,7 +111,9 @@ Category classify(const Entry& entry) {
 FileShape file_shape(Category category) {
     switch (category) {
     case Category::Directory: return FileShape::Diorama;
-    case Category::Text: case Category::Source: return FileShape::Document;
+    case Category::Text: return FileShape::Document;
+    case Category::Source: return FileShape::CodeSlab;
+    case Category::Executable: return FileShape::ExecutableFrame;
     case Category::Image: return FileShape::ImagePanel;
     case Category::Media: return FileShape::MediaPanels;
     case Category::Archive: return FileShape::ArchiveStack;

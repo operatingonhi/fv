@@ -61,7 +61,7 @@ void Browser::restore_view(std::size_t state) {
         if (!index) {
             const auto items=hierarchy.node(current_).items;
             for (std::size_t i=0;i<items.size();++i) if (matches(items[i])) {
-                hierarchy.set_page(current_,i/std::max<std::size_t>(1,hierarchy.layout_config.page_size)); index=locate(); break;
+                hierarchy.set_page(current_,i/page_capacity(items.size(),hierarchy.layout_config)); index=locate(); break;
             }
         }
         if (!index || hierarchy.child(current_,*index)==no_node) { complete=false; break; }

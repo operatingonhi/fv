@@ -6,7 +6,7 @@
 
 namespace spatial {
 enum class Category { Directory, Text, Source, Image, Media, Archive, Executable, Binary, Generated, Symlink, Special, Mixed };
-enum class FileShape { Diorama, Document, ImagePanel, MediaPanels, ArchiveStack, LowTile, Linked, Prism };
+enum class FileShape { Diorama, Document, CodeSlab, ExecutableFrame, ImagePanel, MediaPanels, ArchiveStack, LowTile, Linked, Prism };
 FileShape file_shape(Category category);
 enum class ArtifactKind { None, Object, Library, Dependency, Cache, Temporary, GeneratedSource };
 ArtifactKind artifact_kind(const Entry& entry);

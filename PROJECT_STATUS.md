@@ -2,38 +2,69 @@
 
 ## Milestones and validation
 
-- Milestones **1–4 complete and manually accepted under X11**; user committed that baseline.
-- **Milestone 5 implemented, pending manual GUI acceptance.** Adds read-only browser controls without an alternative explorer view. Milestone 6 has not begun.
-- Latest Debug and Release builds **passed all five test suites**; `git diff --check` passed. GUI smoke launch stopped at `Initialize SDL2: x11 not available`, so Milestone 5 visuals/input and successful desktop/terminal launches remain unverified. Launch helpers and ASan runtime are unavailable here.
+- Milestones **1–5 complete, manually tested and accepted** by the user.
+- **Milestone 6 implemented; manual X11 validation remains.** Scope is targeted
+  refinement of the accepted implementation. No later milestone work, new
+  dependency, alternate explorer, destructive operation, or architectural rewrite.
+- See `MILESTONE6.md` for the audit, changes, measured stress results, limitations,
+  and focused manual checklist. Source and tests remain authoritative.
 
-## Architecture and source map
+## Architecture and current behavior
 
-- C++20, CMake, SDL2/native X11, OpenGL 3.3 Core, Dear ImGui submodule; no new third-party dependency.
-- `filesystem/model.*`: stable IDs and cached metadata. `reader.*`: one cancellable worker for enumeration and path validation, tagged results/generations. Current directory fully loads; at most eight visible children receive 64-entry previews. No automatic symlink traversal or whole-tree scan.
-- `analysis/analysis.*`: semantic shapes, bounded continuous recency, contextual artifact/hidden deweighting, numeric-token series, conservative related groups and artifact cohorts. `query.*`: cache-only filename search and semantic filters; no rendering or I/O.
-- `layout/{layout,hierarchy}.*`: persistent local transforms, nested dioramas, stable anchors, 20-object pages plus ranked summary; priority-based disclosure with hysteresis. Preview geometry depth three, total nesting six including groups.
-- `navigation/`: shared entry/group selection, contexts/pages, screen-direction neighbor scoring, lexical path parsing and bounded history. `graphics/`: existing camera transitions/orbit/zoom, drawing/picking. `ui/`: semantic presentation, dimming/disclosure, existing sidebar selector, path/search/filter controls, concise selection metadata and a titleless scrollable inspector within the sidebar (Inspect/Ctrl+I; Esc dismisses).
-- `app/browser*`: orchestration, deferred ancestor updates, cached worlds and history view snapshots. Same-world navigation preserves nested zoom; unrelated paths and world-root/depth boundaries use controlled changes. `desktop.*`: isolated argv-based `posix_spawnp`, cwd setup, descriptor cleanup and nonblocking exit polling. `main.cpp`: SDL lifecycle/input/RAII.
-- Tests: `tests/{camera,mock,filesystem,analysis,browser}_tests.cpp`; `ctest --test-dir build --output-on-failure`, also `build-release`. Includes dense fixtures, shared/directional selection, paths/history, cache-only queries and launch construction/failures.
+- C++20, SDL2/native X11, OpenGL 3.3 Core, Dear ImGui submodule and explicit CMake
+  targets. Existing filesystem/analysis/layout/graphics/navigation/UI boundaries
+  are retained.
+- One cancellable worker enumerates directories and validates paths. Active
+  directories fully load; eight visible children receive at most 64-entry
+  previews. No automatic link traversal or whole-tree scan.
+- Analysis retains continuous recency, contextual artifact penalties, numeric
+  series, conservative temporal groups, and artifact cohorts. Classification
+  remains outside graphics. Source/text and executable/binary now differ in shape.
+- Hierarchical transforms, stable preview anchors, and deferred ancestor updates
+  remain. Loaded anchors also survive page round trips. Stable-order merging uses
+  member lookup instead of repeated vector erases/searches.
+- Default layout is at most twenty objects: nineteen ordinary objects plus
+  navigable Other entries when oversubscribed; up to twenty without a summary.
+  Search/history share the capacity rule. Tab/Shift+Tab wrap pages without moving
+  the camera; arrows select. Page Up/Down retain bounded paging.
+- Summaries have a preview page without eager recursive replication. Strong series
+  retain a shared floor/roof/support structure and ordered addressable members;
+  weaker inferred groups use a shared base. Member paging bounds large sequences.
+- Hysteretic, apparent-scale LOD retains major structures and the active path.
+  Distant files simplify, distant labels are omitted, and nested traversal is
+  bounded. Idle frames skip LOD and geometry rebuilding. Scene preparation time
+  and box/label counts appear in Settings; GPU uploads remain revision-based.
+- Session Settings expose animation enable/duration, orbit/zoom sensitivity,
+  label density and nested detail depth. Hidden/artifact controls remain in
+  Filters. Defaults preserve accepted camera limits, easing and navigation model.
+- Shared selection, cached queries, history, integrated inspector, desktop opening
+  and terminal cwd behavior remain. Control bytes are escaped in object rows and
+  labels; selected long labels fit the spatial viewport. Sidebar has no decorative
+  window title bar. Esc cancels UI/search/pending validation and never quits.
 
-## Controls and runtime
+## Tests and runtime
 
-- Click scene/sidebar: select and focus; F: focus selection; arrows: screen-direction selection; Tab/Shift+Tab: next/previous focus; Home/End: first/last eligible page item.
-- Enter/double-click: enter directory, expand group or open file; Backspace: parent; Page Up/Down: pages; Alt+Left/Right: history.
-- Ctrl+L: path; Ctrl+F: search; F3/Shift+F3: matching objects across pages; Ctrl+Shift+F: filters; Ctrl+H: hidden toggle; Ctrl+I: inspector; Ctrl+Shift+T: terminal here.
-- Esc cancels transient UI/pending navigation and clears search; filters persist. No quit key. Window-manager/SDL close shuts down normally.
-- Right-drag orbit, wheel zoom, R overview; orbit cannot interrupt transitions, zoom can. Editors/popups consume scene keys.
-- `./build/spatial-navigator [directory]`, default cwd; optional `--smoke-test [capture.ppm]` follows path.
-- Files use `xdg-open` (Void runtime package `xdg-utils`). Terminal: `FSN_TERMINAL`, then `TERMINAL`, else `xdg-terminal-exec`/`xterm` fallback. Quoted argv, no shell expansion; child cwd is selected actual directory or current directory.
+- Debug: `cmake --build build -j2`, `ctest --test-dir build --output-on-failure`.
+- Release: same commands with `build-release`. Six suites include the five
+  preserved suites plus `refinement-stress`.
+- New stress fixture: 14,719 entries, including 10,000 miscellaneous files, 2,000
+  artifacts, forty 60-member sequences, 250 directories, and 64 nested levels.
+  It tests cached preparation and bounded hierarchy/LOD without a real tree scan.
+- Real filesystem tests include bounded concurrent disappearance, unusual/long
+  names, broken links, permission failures where permitted, invalid paths,
+  launcher failures and stale history. Mode-000 testing can be skipped when run
+  with privilege to read it.
+- Launch: `./build/spatial-navigator [directory]`; optional `--smoke-test`.
+  Files use `xdg-open`; terminal uses `FSN_TERMINAL`, then `TERMINAL`, then
+  `xdg-terminal-exec`/`xterm`. No shell expansion or custom quit key.
 
-## Limits and deferred work
+## Remaining boundaries
 
-- Search: case-insensitive filename substring in current cached context/all pages plus two cached descendant levels; incomplete previews indicated, no search-triggered scan/index. Nonmatches dim/unselectable; matching containers retain context. Filters preserve coordinates.
-- History: 64 directory/group visits, shared world caches, selection/page/query/camera restoration; invalid targets report errors and are skipped later. Snapshots have no watcher/automatic refresh or fine-grained cache eviction.
-- Explicit link activation resolves targets; previews never traverse links. Cached metadata may become stale; activation/path/history validate targets. Kernel-blocked calls can delay worker shutdown.
-- Starting-root parent navigation/depth overflow creates another bounded world; seamless rebasing remains deferred. Preview samples are not globally ranked listings.
-- Intentionally deferred: seamless rebasing, refresh/watchers/cache eviction, Unicode-aware search/indexing, profiling and further visual/performance refinement. No alternative list explorer, internal viewers/editors, destructive operations, ML or advanced dependency analysis.
-
-## Next step
-
-Manually validate Milestone 5 using the README checklist: keyboard/mouse/sidebar consistency, opening, queries/filters, paths/history, inspector, terminal cwd, nested animations and normal window-manager close. After acceptance and explicit authorization, next milestone is **6 — Refinement**. Read AGENTS.md and DESIGN.md first.
+No watcher/automatic refresh, fine-grained cache eviction, Unicode-aware search,
+filesystem index, or seamless rebasing across bounded worlds. Analysis/merging
+still run on the main thread after asynchronous enumeration. Extremely large
+listings can therefore cause a preparation pause. Cached history/worlds retain
+memory. Kernel-blocked filesystem calls may delay worker shutdown. Previews are
+samples, not globally ranked listings. Settings are session-only. Visual feel,
+clutter, labels, grouping silhouettes, and window-manager behavior require manual
+X11 inspection before accepting Milestone 6.

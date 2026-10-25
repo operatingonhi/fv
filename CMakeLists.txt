@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(spatial_navigator VERSION 0.5.0 LANGUAGES CXX)
+project(spatial_navigator VERSION 0.6.0 LANGUAGES CXX)
 
 find_package(SDL2 REQUIRED CONFIG)
 find_package(OpenGL REQUIRED)
@@ -39,6 +39,11 @@ target_link_libraries(spatial-navigator PRIVATE browser imgui OpenGL::GL)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(refinement-tests tests/refinement_tests.cpp)
+    target_link_libraries(refinement-tests PRIVATE browser)
+    target_compile_options(refinement-tests PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME refinement-stress COMMAND refinement-tests)
+    set_tests_properties(refinement-stress PROPERTIES TIMEOUT 60)
     add_executable(camera-tests tests/camera_tests.cpp)
     target_link_libraries(camera-tests PRIVATE camera)
     add_test(NAME camera COMMAND camera-tests)

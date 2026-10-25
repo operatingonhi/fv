@@ -2,6 +2,17 @@
 #include <algorithm>
 
 namespace spatial {
+std::string display_name(std::string_view name) {
+    std::string result;
+    result.reserve(name.size());
+    constexpr char hex[]="0123456789abcdef";
+    for (unsigned char c:name) {
+        if (c<32 || c==127) {
+            result+="\\x"; result+=hex[c>>4]; result+=hex[c&15];
+        } else result+=static_cast<char>(c);
+    }
+    return result;
+}
 Vec3 semantic_color(Category category) {
     switch (category) {
     case Category::Directory: return {0.25f,0.65f,1.0f};
@@ -31,6 +42,15 @@ void file_geometry(std::vector<SceneBox>& boxes,FileShape shape,Vec3 center,Vec3
         box({0,0,0},{0.65f,1,0.16f});
         box({0,0.22f,0.09f},{0.48f,0.035f,0.02f});
         break;
+    case FileShape::CodeSlab:
+        box({0,0,0},{0.8f,0.85f,0.18f});
+        box({-0.28f,0,0.12f},{0.06f,0.65f,0.12f});
+        break;
+    case FileShape::ExecutableFrame:
+        box({-0.3f,0,0},{0.2f,1,0.6f});
+        box({0.3f,0,0},{0.2f,1,0.6f});
+        box({0,0.35f,0},{0.6f,0.25f,0.6f});
+        break;
     case FileShape::ImagePanel:
         box({0,0,0},{1,0.6f,0.12f});
         box({0,-0.32f,0},{0.45f,0.08f,0.45f});
@@ -59,7 +79,7 @@ void enclosure(std::vector<SceneBox>& boxes,LocalTransform transform,GroupKind g
     box(diorama_focus+Vec3{0,-0.05f,0},{16,0.1f,16});
     if (group==GroupKind::None) {
         box({0,1.2f,-10.45f},{16,2.4f,0.1f});
-    } else {
+    } else if (group==GroupKind::Series) {
         // A shared floor, roof frame and supports join the actual member modules.
         // Opening the group zooms into these same units; it never scatters them.
         box(diorama_focus+Vec3{0,1.6f,0},{15.6f,0.06f,15.6f});
@@ -79,12 +99,13 @@ void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<u
     }
 }
 Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selected,
-    std::span<const unsigned char> levels,const AppearanceMap& appearance) {
+    std::span<const unsigned char> levels,const AppearanceMap& appearance,const PresentationConfig& config) {
     Presentation result;
     std::vector<NodeId> ancestors;
     for (auto id=current;id!=no_node;id=hierarchy.node(id).parent) ancestors.push_back(id);
     enclosure(result.boxes,hierarchy.node(0).transform,GroupKind::None,semantic_color(Category::Directory)*0.6f);
-    const auto visit=[&](auto&& self,NodeId id)->void {
+    const auto visit=[&](auto&& self,NodeId id,unsigned depth)->void {
+        if (id==current) depth=0;
         const auto& node=hierarchy.node(id);
         const auto& layout=node.world;
         const DisclosureConfig disclosure;
@@ -108,17 +129,24 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
             if (container) {
                 const auto transform=compose(node.transform,contained_transform(node.local.objects[i]));
                 enclosure(result.boxes,transform,object.item.group,color);
-                if (child!=no_node) self(self,child);
-            } else file_geometry(result.boxes,file_shape(object.item.category),object.center,object.size,color);
+                const bool near_context=std::find(ancestors.begin(),ancestors.end(),id)!=ancestors.end();
+                if (child!=no_node && (on_path || (depth<config.nested_depth && (near_context || levels[id]>0 || depth<2))))
+                    self(self,child,depth+1);
+            } else if (levels[id]==0 && !active && !style.force_detail)
+                result.boxes.push_back({object.center,object.size*0.65f,color});
+            else file_geometry(result.boxes,file_shape(object.item.category),object.center,object.size,color);
             if (active)
-                result.boxes.push_back({object.center,object.size+Vec3{0.12f,0.12f,0.12f}*node.transform.scale,{1,0.95f,0.5f}});
-            std::string label=object.item.label;
+                result.boxes.push_back({object.center,object.size+Vec3{0.12f,0.12f,0.12f}*node.transform.scale,selection_color});
+            const bool label_visible=style.labels && (active || style.force_detail ||
+                (config.label_limit>0 && levels[id]>0 && (layout.detail_rank[i]<config.label_limit || container)));
+            if (!label_visible) continue;
+            std::string label=display_name(object.item.label);
             if (object.item.group!=GroupKind::None) label+=" ("+std::to_string(object.item.members.size())+")";
             result.labels.push_back({object.center+Vec3{0,object.size.y/2+0.2f*node.transform.scale,0},
-                active ? Vec3{1,0.95f,0.5f}:color,std::move(label),style.labels && (layout.detail_rank[i]<7 || active || container || style.force_detail),active,object.size.x});
+                active ? selection_color:color,std::move(label),true,active,object.size.x});
         }
     };
-    visit(visit,0);
+    visit(visit,0,0);
     return result;
 }
 }

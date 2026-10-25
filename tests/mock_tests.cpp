@@ -139,7 +139,7 @@ void test_layout(const MockFilesystem& fs) {
     const auto items=analyze(fs,ids,mock_now);
     check(items.size()<240 && groups(items,GroupKind::Artifacts)==1,"Dense fixture summarizes low-interest build output without excluding members");
     const auto first=arrange(items);
-    check(first.objects.size()==21 && first.pages==(items.size()+19)/20,"Bounded page plus one summary");
+    check(first.objects.size()==20 && first.pages==(items.size()+18)/19,"Summary fits in the bounded page");
     check(first.objects.front().item.salience>=first.objects[1].item.salience,"Salience drives placement order");
     check(near(first.objects.front().center.x,0) && first.objects.front().size.x>=first.objects[1].size.x,"High salience has central placement and greater scale");
     std::set<EntryId> all_pages;
@@ -164,7 +164,7 @@ void test_layout(const MockFilesystem& fs) {
     check(arrange(items,999).page==first.pages-1,"Page index clamped");
     check(arrange({}).objects.empty(),"Empty layout");
     LayoutConfig config; config.page_size=3; config.columns=2;
-    check(arrange(items,0,{},config).objects.size()==4,"Density is configurable");
+    check(arrange(items,0,{},config).objects.size()==3,"Density is configurable");
     const auto shifted=arrange(items,0,{5,0,-2});
     check(near(shifted.objects[0].center.x-first.objects[0].center.x,5),"Layout origin supports spatial transitions");
     const auto directory=semantic_color(Category::Directory), image=semantic_color(Category::Image), generated=semantic_color(Category::Generated);
@@ -175,11 +175,11 @@ std::size_t object_named(const Layout& layout,const std::string& name) {
     throw std::runtime_error("Missing layout object: "+name);
 }
 void test_shapes() {
-    check(file_shape(Category::Source)==FileShape::Document && file_shape(Category::Text)==FileShape::Document,"Source/text use document plates");
+    check(file_shape(Category::Source)==FileShape::CodeSlab && file_shape(Category::Text)==FileShape::Document,"Source and text have distinct plate geometry");
     check(file_shape(Category::Image)==FileShape::ImagePanel,"Images use wide panels");
     check(file_shape(Category::Media)==FileShape::MediaPanels,"Media use paired panels");
     check(file_shape(Category::Archive)==FileShape::ArchiveStack,"Archives use stacked bands");
-    check(file_shape(Category::Binary)==FileShape::Prism && file_shape(Category::Executable)==FileShape::Prism,"Binaries/executables use compact prisms");
+    check(file_shape(Category::Binary)==FileShape::Prism && file_shape(Category::Executable)==FileShape::ExecutableFrame,"Executable frame differs from binary prism");
     check(file_shape(Category::Generated)==FileShape::LowTile,"Generated output uses low tiles");
     check(file_shape(Category::Directory)==FileShape::Diorama,"Directories use dioramas");
 }
@@ -197,9 +197,10 @@ void test_hierarchy() {
     const auto engine=browser.hierarchy.child(projects,object_named(project_layout,"engine"));
     check(engine!=no_node && !browser.hierarchy.node(engine).world.objects.empty(),"Visible directory contains another populated nested directory");
     check(browser.scene.targets.size()==root.objects.size(),"Parent-level picking stays separate from miniature children");
-    check(std::any_of(browser.scene.labels.begin(),browser.scene.labels.end(),[](const SceneLabel& label) {
-        return label.text=="main.cpp";
-    }),"Nested source objects already have presentation data in the upstream scene");
+    const auto source=browser.hierarchy.node(engine).world.objects.front().center;
+    check(std::any_of(browser.scene.boxes.begin(),browser.scene.boxes.end(),[&](const SceneBox& box) {
+        return near(box.center.x,source.x) && near(box.center.z,source.z);
+    }),"Nested source geometry exists before entry without requiring distant labels");
     for (auto id:browser.hierarchy.visible_nodes()) {
         const auto& node=browser.hierarchy.node(id);
         for (std::size_t i=0;i<node.local.objects.size();++i) {
@@ -270,7 +271,7 @@ void test_continuity() {
         "Series member IDs and transforms persist through expansion");
     check(browser.layout.objects.front().item.label=="older-note-0-draft.txt","Series starts at numeric ordinal zero");
     browser.act({ActionKind::NextPage});
-    check(browser.layout.objects.front().item.label=="older-note-20-draft.txt","Later sequence members remain individually reachable in numeric order");
+    check(browser.layout.objects.front().item.label=="older-note-19-draft.txt","Later sequence members remain individually reachable in numeric order");
 }
 
 void test_browser() {

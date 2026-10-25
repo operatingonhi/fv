@@ -34,6 +34,12 @@ void Hierarchy::arrange_node(NodeId id,std::size_t page) {
     auto config=layout_config;
     config.rank_remainder=node.group!=GroupKind::Series;
     node.local=arrange(node.items,page,{},config);
+    if (const auto cached=node.anchors_by_page.find(node.local.page);cached!=node.anchors_by_page.end()) {
+        for (std::size_t i=0;i<node.local.objects.size() && i<cached->second.size();++i) {
+            node.local.objects[i].center=cached->second[i].first;
+            node.local.objects[i].size=cached->second[i].second;
+        }
+    }
     node.world=node.local;
     node.world.origin=node.transform.translation;
     for (auto& placement:node.world.objects) {
@@ -72,7 +78,9 @@ void Hierarchy::expand(NodeId id,unsigned depth) {
             nodes_[id].children[i]=child_id;
             nodes_[id].children_by_page[nodes_[id].local.page][i]=child_id;
         }
-        expand(child_id,depth-1);
+        // Summaries retain a preview page, but do not recursively replicate all
+        // omitted entries until explicitly entered.
+        if (nodes_[child_id].group!=GroupKind::Summary) expand(child_id,depth-1);
     }
 }
 namespace {
@@ -90,16 +98,26 @@ void Hierarchy::replace_contents(NodeId id,std::vector<Item> items,bool preserve
     const auto old_layout=nodes_[id].local;
     const auto old_children=nodes_[id].children;
     if (preserve_order) {
+        std::unordered_map<EntryId,std::size_t> by_member;
+        for (std::size_t i=0;i<items.size();++i)
+            for (auto member:items[i].members) by_member.emplace(member,i);
+        std::vector<bool> used(items.size(),false);
         std::vector<Item> ordered;
+        ordered.reserve(items.size());
         for (const auto& old:nodes_[id].items) {
-            auto match=std::find_if(items.begin(),items.end(),[&](const Item& item) { return same_item(old,item); });
-            if (match!=items.end()) { ordered.push_back(std::move(*match)); items.erase(match); }
+            for (auto member:old.members) {
+                const auto found=by_member.find(member);
+                if (found==by_member.end() || used[found->second] || !same_item(old,items[found->second])) continue;
+                used[found->second]=true;
+                ordered.push_back(std::move(items[found->second])); break;
+            }
         }
-        ordered.insert(ordered.end(),std::make_move_iterator(items.begin()),std::make_move_iterator(items.end()));
+        for (std::size_t i=0;i<items.size();++i) if (!used[i]) ordered.push_back(std::move(items[i]));
         items=std::move(ordered);
     }
     nodes_[id].items=std::move(items);
     nodes_[id].children_by_page.clear();
+    nodes_[id].anchors_by_page.clear();
     arrange_node(id,old_layout.page);
     auto& node=nodes_[id];
     std::vector<bool> pinned(node.local.objects.size(),false), old_pinned(old_layout.objects.size(),false);
@@ -125,6 +143,8 @@ void Hierarchy::replace_contents(NodeId id,std::vector<Item> items,bool preserve
         }
     }
     prioritize_disclosure(node.local);
+    auto& anchors=node.anchors_by_page[node.local.page];
+    for (const auto& object:node.local.objects) anchors.emplace_back(object.center,object.size);
     node.world=node.local; node.world.origin=node.transform.translation;
     for (auto& placement:node.world.objects) {
         placement.center=node.transform.point(placement.center); placement.size=placement.size*node.transform.scale;

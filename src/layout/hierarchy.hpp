@@ -30,6 +30,7 @@ struct LayoutNode {
     Layout local, world;
     std::vector<NodeId> children;
     std::map<std::size_t,std::vector<NodeId>> children_by_page;
+    std::map<std::size_t,std::vector<std::pair<Vec3,Vec3>>> anchors_by_page;
 };
 // Input is already analyzed ordinary data. No filesystem retrieval in this layer.
 class Hierarchy {

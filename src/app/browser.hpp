@@ -34,6 +34,10 @@ public:
     Presentation scene;
     Camera camera;
     bool animations=true;
+    PresentationConfig presentation_config;
+    double preparation_ms=0;
+    std::size_t lod_evaluations=0;
+    void configure_presentation() { refresh_scene(); }
     float viewport_width=800,viewport_height=600;
     std::size_t scene_revision=0;
     NodeId current_node() const { return current_; }
@@ -82,6 +86,7 @@ private:
     NodeId current_=0;
     std::vector<NodeId> parents_;
     std::vector<unsigned char> levels_,scratch_levels_;
+    CameraState last_lod_camera_;
     QuerySpec query_;
     QueryResult query_result_;
     bool query_dirty_=true;

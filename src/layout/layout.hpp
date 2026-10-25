@@ -10,6 +10,8 @@ struct DisclosureConfig {
     float detail_enter=0.020f, detail_leave=0.016f;
     std::size_t distant_objects=3, nearby_objects=6;
 };
+// Reserve a summary slot only when the directory exceeds the visible budget.
+std::size_t page_capacity(std::size_t items,const LayoutConfig& config={});
 unsigned char disclosure_level(float apparent_scale,unsigned char previous,const DisclosureConfig& config={});
 struct Placement { Item item; Vec3 center, size; };
 struct Layout {

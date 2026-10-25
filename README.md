@@ -1,9 +1,10 @@
 # Spatial filesystem navigator
 
-Milestone 5 adds read-only browser actions to the accepted spatial filesystem
-visualization: keyboard selection, desktop file opening, search/filtering, path
-entry, history, metadata inspection, and terminal launching. There is no
-alternative explorer view or destructive file operation.
+Milestones 1–5 are accepted. Milestone 6 refines the existing spatial browser:
+compact directory pages, stable loaded anchors, bounded nested detail, semantic
+geometry, session settings, and profiling/stress coverage. See [MILESTONE6.md](MILESTONE6.md)
+for the audit, validation results, known limits, and focused GUI checklist.
+There are no destructive file operations or new dependencies.
 
 ## Dependencies on Void Linux
 
@@ -182,7 +183,7 @@ Groups expose a brief explanation in the existing metadata area.
 
 ## Density, stability, and progressive disclosure
 
-Default pages still hold 20 objects plus a remainder summary. Artifact cohorts
+Default pages hold at most 20 objects, including a remainder summary. Artifact cohorts
 and filename sequences each consume one cohesive region. Every member is
 reachable by expansion/paging, including low-interest output. Remainder summaries
 inherit prominence from their most salient omitted item, identify that item in
@@ -201,19 +202,43 @@ boundary. Labels retain projected-size and overlap checks. Camera changes do not
 rerun analysis or layout; salience does not cause continual rearrangement.
 Metadata updates retain existing anchors and pages, and navigation continues
 through the same nested world. No visual redesign or camera control changes were
-needed.
+needed for the accepted baseline; Milestone 6 refinements are described below.
+
+Milestone 6 reserves the twentieth slot for “Other entries” when more than twenty
+objects exist, so pages expose nineteen objects plus that navigable container.
+Smaller directories retain all twenty slots. The summary occupies the final
+low-priority slot in the existing four-row grid. Tab/Shift+Tab wrap pages;
+Page Up/Down retain their bounded behavior. Search and history use the same page
+capacity. Stable preview anchors survive page round trips. Summary previews do
+not recursively replicate all omitted entries before activation.
+
+Distant standalone files use a single simplified box; medium/near views retain
+semantic shapes. Distant labels are omitted before text generation. Nested
+traversal is bounded, while the active ancestor chain remains visible. Strong
+sequences keep their roof/support compound; weaker temporal/artifact/summary
+groups share a restrained base. Numeric ordering, member identity, and bounded
+pagination remain unchanged.
+
+The **Settings** popup contains session-only animation enable/duration, orbit and
+zoom sensitivity, label density, and nested detail depth. Hidden/artifact
+visibility remains in Filters. Settings do not reposition objects or scan files.
+The popup shows the latest scene-preparation CPU time and box/label counts;
+this is not GPU/frame timing. Idle frames skip LOD evaluation and geometry
+rebuilding. `refinement-tests` prints synthetic preparation timing and counts.
+Control bytes in filenames are escaped in object rows/labels; the inspector
+retains the full filename/path. Long selected scene labels fit the viewport.
 
 ## Shapes and controls
 
-The existing semantic palette and shape vocabulary are retained:
+The terminal-inspired palette is retained, with restrained shape distinctions:
 
 | Category | Geometry | Color |
 | --- | --- | --- |
 | Directory | Floor/backdrop with nested contents | Blue |
-| Source / text | Upright thin slab | Warm / pale |
+| Source / text | Edged code slab / document plate | Warm / pale |
 | Image | Wide panel with a foot | Magenta |
 | Media | Offset panels | Violet |
-| Executable / binary | Compact prism | Green / subdued green |
+| Executable / binary | Open frame / compact prism | Green / subdued green |
 | Archive | Stacked bands | Red |
 | Generated | Low tile | Subdued gray |
 | Symlink | Linked offset forms | Cyan |
@@ -221,14 +246,14 @@ The existing semantic palette and shape vocabulary are retained:
 
 Sequences retain a shared floor, roof, and supports containing actual member
 modules. Expand to select individual filenames and metadata. Default pages still
-hold at most 20 objects plus a remainder summary. Far nested content uses reduced
+hold at most 20 objects, including a remainder summary. Far nested content uses reduced
 geometry and labels, with more detail revealed at closer camera scales. Loaded
 counts for partial previews refer only to the known subset.
 
 - Click a scene object/sidebar row: shared selection and animated focus
 - Arrows: select a drawn eligible object in the requested screen direction; prefer
   nearby aligned targets, without wrapping or moving the camera
-- Tab / Shift+Tab: focus next / previous eligible object on the page
+- Tab / Shift+Tab: cycle the next / previous page, wrapping at either end; camera pose stays fixed
 - Home / End: select first / last eligible page object; F: focus selection
 - Enter / double-click: enter directory, expand group, or open a regular file
 - Backspace / Parent: enclosing context; Page Up / Down: dense-context pages

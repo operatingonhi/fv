@@ -3,11 +3,16 @@
 
 namespace spatial {
 void Camera::orbit(float yaw_delta, float pitch_delta) {
+    if (!std::isfinite(yaw_delta) || !std::isfinite(pitch_delta)) return;
+    yaw_delta*=std::clamp(orbit_sensitivity,0.2f,3.0f);
+    pitch_delta*=std::clamp(orbit_sensitivity,0.2f,3.0f);
     if (moving()) return; // Finish navigation before accepting orbit input.
     current_.yaw=std::clamp(current_.yaw+yaw_delta,-max_yaw,max_yaw);
     current_.pitch=std::clamp(current_.pitch+pitch_delta,min_pitch,max_pitch);
 }
 void Camera::zoom(float steps) {
+    if (!std::isfinite(steps)) return;
+    steps*=std::clamp(zoom_sensitivity,0.2f,3.0f);
     duration_=elapsed_=0;
     current_.distance=std::clamp(current_.distance*std::exp(-steps*0.12f),min_distance*current_.scale,max_distance*current_.scale);
 }
@@ -15,8 +20,8 @@ void Camera::transition(CameraState target, bool animate) {
     start_=current_;
     target_=target;
     elapsed_=0;
-    duration_=animate ? 0.4f : 0.0f;
-    if (!animate) current_=target;
+    duration_=animate ? std::clamp(animation_duration,0.0f,1.0f):0.0f;
+    if (duration_==0) current_=target;
 }
 void Camera::focus(Vec3 target, bool animate, float distance, float scale) {
     CameraState next;
@@ -33,7 +38,7 @@ void Camera::restore(CameraState state,bool animate) {
 }
 void Camera::reset(bool animate) { transition(CameraState{},animate); }
 void Camera::update(float seconds) {
-    if (!moving()) return;
+    if (!std::isfinite(seconds) || !moving()) return;
     elapsed_=std::min(duration_,elapsed_+std::max(seconds,0.0f));
     const float t=elapsed_/duration_, eased=t*t*(3-2*t);
     const auto mix=[eased](float a,float b) { return a+(b-a)*eased; };
@@ -49,6 +54,7 @@ Vec3 Camera::eye() const {
         current_.distance*std::sin(current_.pitch),horizontal*std::cos(current_.yaw)};
 }
 Mat4 Camera::view_projection(float aspect) const {
+    if (!std::isfinite(aspect) || aspect<=0) aspect=1;
     return perspective(aspect,current_.distance*0.002f,current_.distance*50.0f)*look_at(eye(),current_.focus);
 }
 }

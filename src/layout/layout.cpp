@@ -29,10 +29,14 @@ Vec3 layout_slot(std::size_t index,const LayoutConfig& config) {
     const float x=column==0 ? 0.0f:static_cast<float>((column+1)/2)*(column%2 ? -1.0f:1.0f);
     return {x*spacing,0,3.0f-static_cast<float>(index/columns)*spacing};
 }
+std::size_t page_capacity(std::size_t items,const LayoutConfig& config) {
+    const auto budget=std::max<std::size_t>(2,config.page_size);
+    return items>budget ? budget-1:budget;
+}
 Layout arrange(std::span<const Item> items,std::size_t page,Vec3 origin,const LayoutConfig& config) {
     Layout result;
     result.origin=origin;
-    const auto page_size=std::max<std::size_t>(1,config.page_size);
+    const auto page_size=page_capacity(items.size(),config);
     result.pages=std::max<std::size_t>(1,(items.size()+page_size-1)/page_size);
     result.page=std::min(page,result.pages-1);
     const auto begin=result.page*page_size, end=std::min(items.size(),begin+page_size);
