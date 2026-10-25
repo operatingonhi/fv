@@ -164,7 +164,7 @@ a gold outline; terminal-inspired colors and basic salience remain in place.
 - R or Reset: return to the current context's overview
 - Right-drag in the scene: bounded orbit; wheel: bounded zoom
 - Animate navigation checkbox: enable/disable subsequent transitions
-- Escape or window close: quit
+- Window-manager close request: quit (Esc is unassigned)
 
 Transitions last 0.4 seconds with smoothstep easing. Orbit input is ignored during
 transitions; zoom can interrupt them. Ordinary entry/parent navigation changes

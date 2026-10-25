@@ -124,7 +124,6 @@ int main(int argc,char** argv) {
                     running=false;
                 if (event.type==SDL_KEYDOWN && !event.key.repeat && !io.WantCaptureKeyboard) {
                     switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE: running=false; break;
                     case SDLK_r: act({spatial::ActionKind::Reset}); break;
                     case SDLK_TAB:
                         if (!browser.layout.objects.empty())

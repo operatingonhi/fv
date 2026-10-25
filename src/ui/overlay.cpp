@@ -55,7 +55,7 @@ UiAction overlay(const MockFilesystem& fs,const Navigation& navigation,const Lay
         if (ImGui::Button("Enter / expand")) action={ActionKind::Open,navigation.selected()};
     }
     ImGui::Checkbox("Animate navigation",&animations);
-    ImGui::TextWrapped("Tab: next | Enter: enter/expand\nPgUp/PgDn: page | Esc: quit\nRight-drag: orbit | Wheel: zoom\nClick scene: focus | Double-click: enter");
+    ImGui::TextWrapped("Tab: next | Enter: enter/expand\nPgUp/PgDn: page\nRight-drag: orbit | Wheel: zoom\nClick scene: focus | Double-click: enter");
     ImGui::End();
     return action;
 }
