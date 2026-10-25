@@ -270,7 +270,10 @@ error and are skipped on subsequent history attempts. Snapshots are not live
 refreshes. Path validation shares the existing single worker, and generation
 checks discard stale results after world switches.
 
-The optional floating inspector uses cached filename/path, kind, size, timestamp,
+The sidebar selection summary shows name, semantic type, size and modification
+time (or member count for groups). Inspect / Ctrl+I toggles an integrated,
+scrollable metadata region with no window title bar or close button; Esc dismisses
+it without quitting. The detailed region uses cached filename/path, kind, size, timestamp,
 permissions, executable state, symlink target/errors, semantic classification,
 salience and group details. It does not collect expensive metadata per frame.
 

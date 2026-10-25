@@ -17,6 +17,27 @@ const char* entry_kind(EntryKind kind) {
     default: return "special/unknown";
     }
 }
+void selection_summary(const Browser& browser) {
+    const auto* item=browser.selected_item();
+    if (!item) { ImGui::TextUnformatted("No matching selection on this page"); return; }
+    ImGui::TextWrapped("%s — %s",item->label.c_str(),category_name(item->category));
+    if (item->group!=GroupKind::None) {
+        ImGui::Text("%zu members",item->members.size());
+        return;
+    }
+    const auto& entry=browser.filesystem.entry(item->members.front());
+    if (entry.size_known) ImGui::Text("%llu bytes",static_cast<unsigned long long>(entry.bytes));
+    else ImGui::TextUnformatted("Size: unavailable");
+    if (entry.modified_known) {
+        const auto timestamp=static_cast<std::time_t>(entry.modified);
+        std::tm local{}; char text[32]{};
+        if (localtime_r(&timestamp,&local) && std::strftime(text,sizeof(text),"%Y-%m-%d %H:%M",&local)) {
+            ImGui::Text("Modified: %s",text);
+            return;
+        }
+    }
+    ImGui::TextUnformatted("Modified: unavailable");
+}
 void inspector(const Browser& browser) {
     const auto* item=browser.selected_item();
     if (!item) { ImGui::TextUnformatted("No object selected"); return; }
@@ -112,7 +133,10 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     if (!browser.notice.empty()) ImGui::TextWrapped("%s",browser.notice.c_str());
     ImGui::BeginDisabled(layout.page==0); if (ImGui::Button("< Page")) action={ActionKind::PreviousPage}; ImGui::EndDisabled();
     ImGui::SameLine(); ImGui::BeginDisabled(layout.page+1>=layout.pages); if (ImGui::Button("Page >")) action={ActionKind::NextPage}; ImGui::EndDisabled();
-    const auto height=std::max(70.0f,ImGui::GetContentRegionAvail().y-130);
+    // Reserve space in the same sidebar for the summary, controls and optional
+    // inspector. Both lists scroll independently; no floating window is needed.
+    const auto detail_height=state.inspector ? 200.0f:0.0f;
+    const auto height=std::max(70.0f,ImGui::GetContentRegionAvail().y-180-detail_height);
     if (ImGui::BeginChild("Objects",{0,height},ImGuiChildFlags_Borders)) {
         for (std::size_t i=0;i<layout.objects.size();++i) {
             const auto& item=layout.objects[i].item;
@@ -133,21 +157,20 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
         }
     }
     ImGui::EndChild();
-    if (const auto* item=browser.selected_item()) ImGui::TextWrapped("%s — %s",item->label.c_str(),category_name(item->category));
-    else ImGui::TextUnformatted("No matching selection on this page");
-    if (ImGui::Button("Inspector")) state.inspector=!state.inspector;
+    ImGui::Separator();
+    selection_summary(browser);
+    if (ImGui::Button(state.inspector ? "Less detail":"Inspect")) state.inspector=!state.inspector;
     ImGui::SameLine(); if (ImGui::Button("Terminal here")) action={ActionKind::Terminal};
     if (ImGui::Button("Activate (Enter)")) action={ActionKind::Open,nav.selected()};
     ImGui::SameLine(); if (ImGui::Button("Reset (R)")) action={ActionKind::Reset};
     ImGui::Checkbox("Animate navigation",&browser.animations);
+    if (state.inspector) {
+        ImGui::SeparatorText("Metadata");
+        if (ImGui::BeginChild("Metadata details",{0,200},ImGuiChildFlags_Borders)) inspector(browser);
+        ImGui::EndChild();
+    }
     state.capture_navigation=ImGui::IsAnyItemActive() || ImGui::IsPopupOpen(nullptr,ImGuiPopupFlags_AnyPopupId) || ImGui::GetIO().NavVisible;
     ImGui::End();
-    if (state.inspector) {
-        ImGui::SetNextWindowSize({380,0},ImGuiCond_FirstUseEver);
-        if (ImGui::Begin("Metadata",&state.inspector,ImGuiWindowFlags_AlwaysAutoResize)) inspector(browser);
-        state.capture_navigation=state.capture_navigation || ImGui::IsAnyItemActive();
-        ImGui::End();
-    }
     if (state.cancel_edits || state.release_focus || context_changed) {
         ImGui::SetWindowFocus(nullptr); state.capture_navigation=false; state.release_focus=false;
         if (reset_inputs) { state.path=fs.path(nav.context().directory); state.search=browser.query().text; }
