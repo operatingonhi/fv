@@ -226,11 +226,47 @@ void loading_regressions(const fs::path& root) {
     } // Cancels pending work and joins without touching graphics or model lifetimes.
 }
 
+void milestone4_mixture(const fs::path& root) {
+    const auto directory=root/"mixed-density";
+    fs::create_directory(directory);
+    for (int i=0;i<400;++i) write(directory/("object-"+std::to_string(i*3)+"-cache.o"));
+    for (int i=0;i<200;++i) {
+        const auto path=directory/("misc-"+std::to_string(i*2)+"-draft.txt");
+        write(path); fs::last_write_time(path,fs::file_time_type::clock::now()-std::chrono::hours(24*100));
+    }
+    for (int i=1;i<=20;++i) {
+        std::ostringstream name; name<<"frame_"<<std::setw(3)<<std::setfill('0')<<i<<".png";
+        write(directory/name.str());
+    }
+    write(directory/"important.cpp");
+    fs::last_write_time(directory/"important.cpp",fs::file_time_type::clock::now()-std::chrono::hours(24*100));
+    Browser browser(directory); settle(browser);
+    check(browser.layout.total_entries==621 && browser.layout.objects.size()<=21,"Real-world mixed directory retains all 621 entries within bounded footprint");
+    bool source=false,series=false,artifacts=false;
+    for (const auto& placement:browser.layout.objects) {
+        source=source || placement.item.label=="important.cpp";
+        series=series || (placement.item.group==GroupKind::Series && placement.item.members.size()==20);
+    }
+    check(source && series,"Old source and coherent image series remain discoverable despite recent build output");
+    const auto records=analyze(browser.filesystem,browser.filesystem.children(0),browser.now());
+    for (const auto& item:records) if (item.group==GroupKind::Artifacts) {
+        check(item.members.size()==400 && item.salience<0.3f,"Recent real artifacts form one deweighted expandable group"); artifacts=true;
+    }
+    check(artifacts,"On-disk build artifacts are summarized");
+    const auto saved=browser.layout.objects;
+    browser.act({ActionKind::Focus,0}); browser.update(1);
+    browser.act({ActionKind::Reset}); browser.update(1);
+    for (std::size_t i=0;i<saved.size();++i)
+        check(saved[i].center.x==browser.layout.objects[i].center.x && saved[i].center.z==browser.layout.objects[i].center.z,
+            "Focus, zoom transitions and reset do not reshuffle mixed-directory objects");
+    std::cout<<"Tested 621-entry mix: 400 artifacts, 200 older notes, 20 frames and important source\n";
+}
+
 }
 int main() {
     try {
         TemporaryDirectory temporary;
-        enumeration(temporary.path); errors(temporary.path); sequences_and_large_directory(temporary.path); loading_regressions(temporary.path);
+        enumeration(temporary.path); errors(temporary.path); sequences_and_large_directory(temporary.path); loading_regressions(temporary.path); milestone4_mixture(temporary.path);
         std::cout<<"Real filesystem tests passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

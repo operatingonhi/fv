@@ -55,6 +55,7 @@ UiAction overlay(const Filesystem& fs,const Navigation& navigation,const Layout&
         const auto& item=layout.objects[navigation.selected()].item;
         ImGui::TextWrapped("%s",item.label.c_str());
         ImGui::Text("%s / salience %.2f",category_name(item.category),item.salience);
+        if (!item.explanation.empty()) ImGui::TextWrapped("%s",item.explanation.c_str());
         if (item.group!=GroupKind::None) ImGui::Text("%zu members (expand to inspect)",item.members.size());
         else {
             const auto& entry=fs.entry(item.members.front());

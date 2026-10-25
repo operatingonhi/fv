@@ -2,39 +2,38 @@
 
 ## Milestones and validation
 
-- **1 — Rendering foundation:** complete; user manually validated and accepted under X11.
-- **2 — Mock spatial filesystem:** complete; user accepted nested dioramas, continuous parent-child zoom, orbit, semantic shapes/colors, compound sequences, grouping, and basic salience.
-- **3 — Real filesystem integration:** implemented; Debug and Release builds and all three automated suites pass. Includes temporary fixtures with 600 files, metadata/errors, symlinks, progressive loading, and navigation regressions. **Manual GUI validation and user acceptance are still pending.**
-- This execution environment cannot connect to X11. Do not treat that as a build failure or claim GUI verification from automated tests. ASan runtime is unavailable.
+- **Milestones 1–3:** complete and manually accepted by the user under X11. This includes nested dioramas, continuous parent-child zoom, orbit, semantic geometry/colors, grouping, salience, and real filesystem integration.
+- **Milestone 4:** implemented; **manual GUI validation and acceptance pending**. Debug and Release builds pass all four test suites, including 600-file and mixed 621-entry filesystem fixtures. No Milestone 5 implementation has begun.
+- This execution environment cannot connect to X11; that is not a build failure. Never infer visual validation from automated tests. ASan runtime is unavailable.
 
-## Implemented architecture and source map
+## Architecture and source map
 
-- C++20, CMake, native X11 through SDL2, OpenGL 3.3 Core, and Dear ImGui submodule. No new third-party dependency for filesystem loading.
-- `src/filesystem/model.*`: main-thread metadata cache with stable entry/parent IDs; `reader.*`: non-recursive `std::filesystem` reader and one cancellable `std::jthread`. Active directories load fully; up to eight visible child directories receive 64-entry previews. Descendants load on navigation, not through startup recursion. `mock_filesystem.*` remains for regression fixtures.
-- `src/analysis/analysis.*`: semantic categories/shapes, continuous recency with seven-day half-life, explicit low-interest weights, numeric-token sequences anywhere in filename stems, and conservative name/timestamp groups. Renderer contains no extension heuristics.
-- `src/layout/layout.*`, `hierarchy.*`: persistent parent-relative transforms, nested dioramas, cached pages, and stable placement during data updates. Default page: 20 objects plus a remainder summary. Visual previews extend three levels; total nesting cap is six, including groups.
-- `src/app/browser.*`: connects loading results, analysis, hierarchy, semantic navigation, and camera targets. Enclosing-directory updates wait while their groups/descendants are active, then apply on return to avoid detaching the current context.
-- `src/navigation/navigation.*`: context/selection/page/parent stack. `graphics/camera.*`: explicit smoothstep transitions and scale-aware orbit/zoom/clipping; `renderer.*` and `picking.*`: drawing and picking. `ui/presentation.*`, `overlay.*`: semantic geometry, LOD, labels, metadata/status. `app/main.cpp`: CLI, SDL events, and RAII shutdown.
-- Tests: `tests/camera_tests.cpp`, `mock_tests.cpp`, `filesystem_tests.cpp`; run with `ctest --test-dir build --output-on-failure`.
+- Stack: C++20, CMake, SDL2/native X11, OpenGL 3.3 Core, Dear ImGui submodule. No additional third-party dependencies.
+- `src/filesystem/model.*`: main-thread metadata cache with stable parent/entry IDs. `reader.*`: one cancellable `std::jthread`, non-recursive `std::filesystem` reads. Active directories load fully; at most eight visible child directories get 64-entry previews. `mock_filesystem.*` remains for tests.
+- `src/analysis/analysis.*`: semantic categories/shapes; semantic baseline plus bounded recency (default .24, seven-day half-life); contextual artifact/hidden modifiers; cached directory characteristics; mean/peak group scores. Numeric-token series check padding, versions, sizes, parent/type; related groups require name family, extension, timestamps and compatible sizes. Eight leftover artifacts trigger an expandable group. No ML or persistent usage tracking.
+- `src/layout/layout.*`, `hierarchy.*`: persistent parent-relative transforms and cached pages; 20 objects plus ranked remainder summary. Existing anchors remain stable during updates. Disclosure priority is separate from position; LOD uses hysteresis. Visual preview depth is three; total nesting cap is six, including groups/summaries. These limits do not trigger filesystem traversal.
+- `src/app/browser.*`: loading/analysis/navigation orchestration. Enclosing updates are deferred while their groups/descendants are active, then applied on return. Cached child statistics update parent scores without moving dioramas.
+- `src/navigation/navigation.*`: context, selection, pages and parent stack. `graphics/camera.*`: scale-aware transitions/orbit/zoom; `renderer.*`, `picking.*`: drawing/picking. `ui/presentation.*`, `overlay.*`: geometry, labels, metadata/status and group explanations. `app/main.cpp`: CLI, SDL events and RAII cleanup.
+- Tests: `tests/{camera,mock,filesystem,analysis}_tests.cpp`; run `ctest --test-dir build --output-on-failure`. Classification/salience stay outside rendering; analysis/layout perform no filesystem I/O.
 
-## Current controls
+## Controls
 
-- Click: focus; double-click/Enter: enter directory or expand group. Regular files only focus.
-- Tab: next object; F: focus selection; Backspace/Parent: enclosing context; Page Up/Down: pages.
-- Right-drag: bounded orbit; wheel: zoom; R: current overview; checkbox: disable subsequent animations. Orbit cannot interrupt transitions; zoom can.
-- Window-manager close/SDL quit: exit with resource cleanup. **Esc is unassigned; no custom quit key.**
-- Run `./build/spatial-navigator [directory]`; default is the current working directory. Optional `--smoke-test [capture.ppm]` follows the directory argument.
+- Click/F: focus; double-click/Enter: enter directory or expand group. Files only focus.
+- Tab: next object; Backspace/Parent: enclosing context; Page Up/Down: pages.
+- Right-drag: bounded orbit; wheel: zoom; R: overview; animation checkbox affects subsequent transitions. Orbit cannot interrupt transitions; zoom can.
+- Window-manager close/SDL quit exits cleanly. **Esc is unassigned; no custom quit key.**
+- Launch: `./build/spatial-navigator [directory]` (default: cwd). Optional `--smoke-test [capture.ppm]` follows the directory argument.
 
 ## Limits and deferred work
 
-- Starting path is the spatial-world root; cannot navigate above it or beyond the existing nesting cap.
-- Discovered symlinks are selectable cyan linked forms with target/error metadata, never traversed. An explicitly supplied starting directory may be a symlink. Link size/mtime are unavailable rather than borrowed from targets.
-- Snapshots and visited metadata are cached; no watcher or automatic refresh. Preview sampling is not globally salience-ranked; promotion preserves known anchors/order before appending new content.
-- Kernel-blocked filesystem calls cannot be interrupted by the stop token and may delay worker shutdown.
-- File opening, destructive operations, search/filtering, broader history, deeper rebasing, and advanced salience/clustering remain deferred.
+- Starting path is the world root; cannot navigate above it or past the nesting cap.
+- Discovered symlinks show cyan linked geometry, target/errors, and unavailable link size/mtime; they are not traversed. An explicit starting path may be a directory symlink.
+- No watcher/automatic refresh. Previews are samples, not globally ranked listings. Promotion preserves known ordering; ranked summaries expose important omitted entries. Heuristics deliberately leave ambiguous sequences/groups separate; no scored entry is excluded.
+- Kernel-blocked filesystem calls can delay worker shutdown despite cooperative cancellation.
+- File opening, search/filtering, broader history, destructive operations, deeper rebasing and advanced clustering remain deferred.
 
-## Next checkpoint
+## Next step
 
-First manually validate Milestone 3 under X11: real nested contents and zoom continuity, preview completion, large-directory pages, both sequence patterns, shapes/colors, metadata, unreadable directories, symlinks, and normal window closing. Detailed checklist is in `README.md`.
+Manually validate Milestone 4 using source repositories, build outputs, photos/sequences, session exports and miscellaneous dense directories. Check ranking, false positives, artifact/member access, summaries, LOD flicker, label clutter and spatial stability. Detailed checks: `README.md`.
 
-Next planned milestone is **4 — Salience and Grouping refinement**, after Milestone 3 validation/acceptance and explicit authorization. No Milestone 4 implementation has begun. Read `AGENTS.md` and `DESIGN.md` before further code changes.
+Next planned milestone: **5 — Practical File Navigation**, only after Milestone 4 acceptance and explicit authorization. Read `AGENTS.md` and `DESIGN.md` before further code changes.

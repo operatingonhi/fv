@@ -68,13 +68,14 @@ void enclosure(std::vector<SceneBox>& boxes,LocalTransform transform,GroupKind g
     }
 }
 }
-void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<unsigned char>& result) {
-    result.assign(hierarchy.size(),0);
+void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<unsigned char>& result,std::span<const unsigned char> previous) {
+    if (!previous.empty()) result.assign(previous.begin(),previous.end());
+    result.resize(hierarchy.size(),0);
     const auto eye=camera.eye();
     for (auto id:hierarchy.visible_nodes()) {
         const auto offset=eye-hierarchy.focus(id);
         const auto ratio=hierarchy.node(id).transform.scale/std::max(0.0000001f,std::sqrt(dot(offset,offset)));
-        result[id]=ratio>0.018f ? 2:ratio>0.002f ? 1:0;
+        result[id]=disclosure_level(ratio,result[id]);
     }
 }
 Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selected,
@@ -86,7 +87,9 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
     const auto visit=[&](auto&& self,NodeId id)->void {
         const auto& node=hierarchy.node(id);
         const auto& layout=node.world;
-        const std::size_t limit=levels[id]==2 ? layout.objects.size():levels[id]==1 ? 6:3;
+        const DisclosureConfig disclosure;
+        const std::size_t limit=levels[id]==2 ? layout.objects.size():
+            levels[id]==1 ? disclosure.nearby_objects:disclosure.distant_objects;
         for (std::size_t i=0;i<layout.objects.size();++i) {
             const auto child=hierarchy.child(id,i);
             const bool active=id==current && i==selected;
@@ -94,7 +97,7 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
             const auto& object=layout.objects[i];
             const auto color=semantic_color(object.item.category)*(0.5f+0.5f*object.item.salience);
             if (id==current) result.targets.push_back({object.center,object.size,color});
-            if (i>=limit && !active && !on_path) continue;
+            if (layout.detail_rank[i]>=limit && !active && !on_path) continue;
             const bool container=object.item.category==Category::Directory || object.item.group!=GroupKind::None;
             if (container) {
                 const auto transform=compose(node.transform,contained_transform(node.local.objects[i]));
@@ -106,7 +109,7 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
             std::string label=object.item.label;
             if (object.item.group!=GroupKind::None) label+=" ("+std::to_string(object.item.members.size())+")";
             result.labels.push_back({object.center+Vec3{0,object.size.y/2+0.2f*node.transform.scale,0},
-                active ? Vec3{1,0.95f,0.5f}:color,std::move(label),i<7 || active || container,active,object.size.x});
+                active ? Vec3{1,0.95f,0.5f}:color,std::move(label),layout.detail_rank[i]<7 || active || container,active,object.size.x});
         }
     };
     visit(visit,0);

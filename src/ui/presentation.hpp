@@ -12,7 +12,7 @@ struct Presentation {
     std::vector<SceneLabel> labels;
 };
 // Geometry LOD depends on apparent world scale, not which directory was activated.
-void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<unsigned char>& result);
+void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<unsigned char>& result,std::span<const unsigned char> previous={});
 Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selected,
     std::span<const unsigned char> levels);
 }

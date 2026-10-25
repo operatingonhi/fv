@@ -31,7 +31,9 @@ NodeId Hierarchy::add(std::vector<Item> items,NodeId parent,LocalTransform trans
 }
 void Hierarchy::arrange_node(NodeId id,std::size_t page) {
     auto& node=nodes_[id];
-    node.local=arrange(node.items,page,{},layout_config);
+    auto config=layout_config;
+    config.rank_remainder=node.group!=GroupKind::Series;
+    node.local=arrange(node.items,page,{},config);
     node.world=node.local;
     node.world.origin=node.transform.translation;
     for (auto& placement:node.world.objects) {
@@ -122,6 +124,7 @@ void Hierarchy::replace_contents(NodeId id,std::vector<Item> items,bool preserve
             }
         }
     }
+    prioritize_disclosure(node.local);
     node.world=node.local; node.world.origin=node.transform.translation;
     for (auto& placement:node.world.objects) {
         placement.center=node.transform.point(placement.center); placement.size=placement.size*node.transform.scale;

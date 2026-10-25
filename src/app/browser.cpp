@@ -1,6 +1,7 @@
 #include "app/browser.hpp"
 #include <algorithm>
 #include <chrono>
+#include <set>
 
 namespace spatial {
 Browser::Browser():filesystem(make_mock_filesystem()) {
@@ -90,6 +91,7 @@ void Browser::update(float seconds) {
         deferred_.clear(); apply_deferred_=false;
     }
     bool status_changed=false;
+    std::set<EntryId> rescore_parents;
     for (auto& result:results) {
         // Don't regroup an enclosing directory while the user is inside one of
         // its groups/descendants: that could detach the active diorama. Apply the
@@ -111,7 +113,12 @@ void Browser::update(float seconds) {
         if (pending_.contains(result.directory)) filesystem.mark_loading(result.directory);
         const auto& children=filesystem.children(result.directory);
         hierarchy.upsert_directory({result.directory,analyze(filesystem,children,now_)},analyze(filesystem,children,now_,{},false));
+        if (result.directory!=root_id) rescore_parents.insert(filesystem.entry(result.directory).parent);
         changed=true;
+    }
+    for (auto parent:rescore_parents) {
+        const auto& children=filesystem.children(parent);
+        hierarchy.upsert_directory({parent,analyze(filesystem,children,now_)},analyze(filesystem,children,now_,{},false));
     }
     if (changed) {
         hierarchy.ensure_preview(current_,hierarchy.config.preview_depth);
@@ -119,7 +126,7 @@ void Browser::update(float seconds) {
     }
     if (status_changed) update_status();
     camera.update(seconds);
-    detail_levels(hierarchy,camera,scratch_levels_);
+    detail_levels(hierarchy,camera,scratch_levels_,levels_);
     if (scratch_levels_!=levels_) refresh_scene();
 }
 void Browser::act(UiAction action) {
