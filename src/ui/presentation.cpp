@@ -13,6 +13,8 @@ Vec3 semantic_color(Category category) {
     case Category::Executable: return {0.35f,0.95f,0.5f};
     case Category::Binary: return {0.45f,0.7f,0.45f};
     case Category::Generated: return {0.45f,0.5f,0.55f};
+    case Category::Symlink: return {0.3f,0.9f,0.9f};
+    case Category::Special: return {0.7f,0.65f,0.55f};
     case Category::Mixed: return {0.4f,0.8f,0.8f};
     }
     return {1,1,1};
@@ -39,6 +41,10 @@ void file_geometry(std::vector<SceneBox>& boxes,FileShape shape,Vec3 center,Vec3
         break;
     case FileShape::ArchiveStack:
         for (int n=0;n<3;++n) box({0,-0.32f+n*0.32f,0},{0.85f,0.23f,0.8f});
+        break;
+    case FileShape::Linked:
+        box({-0.17f,-0.05f,-0.1f},{0.6f,0.45f,0.35f});
+        box({0.17f,0.05f,0.1f},{0.6f,0.45f,0.35f});
         break;
     case FileShape::LowTile:
         boxes.push_back({{center.x,ground+size.y*0.08f,center.z},{size.x,size.y*0.16f,size.z*0.8f},color});

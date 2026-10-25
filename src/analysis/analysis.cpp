@@ -3,19 +3,21 @@
 #include <charconv>
 #include <cmath>
 #include <map>
-#include <optional>
+#include <cctype>
 #include <tuple>
 
 namespace spatial {
 namespace {
 std::string extension(const std::string& name) {
     const auto dot=name.rfind('.');
-    return dot==std::string::npos ? "":name.substr(dot);
+    auto result=dot==std::string::npos ? "":name.substr(dot);
+    for (char& c:result) c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return result;
 }
 struct Numbered { std::string prefix,suffix; std::uint64_t number; };
 std::vector<Numbered> numbered(const Entry& entry) {
     std::vector<Numbered> result;
-    if (entry.kind==EntryKind::Directory) return result;
+    if (entry.kind!=EntryKind::File) return result;
     const auto dot=entry.name.rfind('.');
     const auto end=dot==std::string::npos ? entry.name.size():dot;
     for (std::size_t i=0;i<end;) {
@@ -32,14 +34,16 @@ std::vector<Numbered> numbered(const Entry& entry) {
 }
 Category classify(const Entry& entry) {
     if (entry.kind==EntryKind::Directory) return Category::Directory;
+    if (entry.kind==EntryKind::Symlink) return Category::Symlink;
+    if (entry.kind==EntryKind::Other) return Category::Special;
     const auto ext=extension(entry.name);
     if (ext==".o" || ext==".a" || ext==".so" || ext==".cache" || ext==".tmp") return Category::Generated;
     if (ext==".bin") return Category::Binary;
     if (entry.executable) return Category::Executable;
-    if (ext==".cpp" || ext==".hpp" || ext==".c" || ext==".h" || ext==".py") return Category::Source;
-    if (ext==".png" || ext==".jpg" || ext==".svg") return Category::Image;
-    if (ext==".mp4" || ext==".ogg" || ext==".wav") return Category::Media;
-    if (ext==".zip" || ext==".gz" || ext==".tar") return Category::Archive;
+    if (ext==".cpp" || ext==".hpp" || ext==".c" || ext==".h" || ext==".py" || ext==".cc" || ext==".cxx" || ext==".rs" || ext==".js" || ext==".ts" || ext==".go") return Category::Source;
+    if (ext==".png" || ext==".jpg" || ext==".jpeg" || ext==".gif" || ext==".webp" || ext==".svg") return Category::Image;
+    if (ext==".mp4" || ext==".ogg" || ext==".mp3" || ext==".flac" || ext==".wav") return Category::Media;
+    if (ext==".zip" || ext==".gz" || ext==".xz" || ext==".bz2" || ext==".zst" || ext==".7z" || ext==".tar") return Category::Archive;
     return Category::Text;
 }
 FileShape file_shape(Category category) {
@@ -50,12 +54,13 @@ FileShape file_shape(Category category) {
     case Category::Media: return FileShape::MediaPanels;
     case Category::Archive: return FileShape::ArchiveStack;
     case Category::Generated: return FileShape::LowTile;
+    case Category::Symlink: return FileShape::Linked;
     default: return FileShape::Prism;
     }
 }
 float salience(const Entry& entry,std::int64_t now,const AnalysisConfig& config) {
     const double age=std::max(0.0,static_cast<double>(now)-static_cast<double>(entry.modified));
-    const float recent=static_cast<float>(std::exp2(-age/std::max(1.0,config.recency_half_life)));
+    const float recent=entry.modified_known ? static_cast<float>(std::exp2(-age/std::max(1.0,config.recency_half_life))):0.0f;
     float score=0.2f+0.8f*recent;
     switch (classify(entry)) {
     case Category::Directory: score=0.65f+0.35f*recent; break;
@@ -65,10 +70,10 @@ float salience(const Entry& entry,std::int64_t now,const AnalysisConfig& config)
     case Category::Archive: score*=0.7f; break;
     default: break;
     }
-    if (entry.name.starts_with('.')) score*=0.55f;
+    if (entry.hidden || entry.name.starts_with('.')) score*=0.55f;
     return std::clamp(score,0.02f,1.0f);
 }
-std::vector<Item> analyze(const MockFilesystem& fs,std::span<const EntryId> entries,
+std::vector<Item> analyze(const Filesystem& fs,std::span<const EntryId> entries,
     std::int64_t now,const AnalysisConfig& config,bool grouping) {
     std::vector<Item> result;
     std::vector<bool> used(entries.size(),false);
@@ -166,6 +171,8 @@ const char* category_name(Category category) {
     case Category::Executable: return "executable";
     case Category::Binary: return "binary";
     case Category::Generated: return "generated";
+    case Category::Symlink: return "symlink";
+    case Category::Special: return "special/unknown";
     case Category::Mixed: return "mixed";
     }
     return "unknown";

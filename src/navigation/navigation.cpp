@@ -2,10 +2,10 @@
 #include <algorithm>
 
 namespace spatial {
-std::vector<EntryId> Navigation::entries(const MockFilesystem& fs) const {
+std::vector<EntryId> Navigation::entries(const Filesystem& fs) const {
     return current_.group ? current_.group->members:fs.children(current_.directory);
 }
-std::string Navigation::path(const MockFilesystem& fs) const {
+std::string Navigation::path(const Filesystem& fs) const {
     const auto directory=fs.path(current_.directory);
     return current_.group ? directory+" / ["+current_.group->label+"]":directory;
 }
@@ -19,7 +19,7 @@ void Navigation::page(int delta,std::size_t count) {
     if (delta>0 && current_.page+1<count) ++current_.page;
     current_.selected=0;
 }
-bool Navigation::open(const MockFilesystem& fs,const Item& item) {
+bool Navigation::open(const Filesystem& fs,const Item& item) {
     if (item.members.empty()) return false;
     auto next=current_;
     if (item.group!=GroupKind::None) next.group=GroupView{item.label,item.members};

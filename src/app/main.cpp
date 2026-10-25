@@ -58,13 +58,18 @@ void check_frame(int width,int height,int left,const char* capture) {
 int main(int argc,char** argv) {
     bool smoke=false;
     const char* capture=nullptr;
-    if (argc>1) {
-        if (std::string_view(argv[1])!="--smoke-test" || argc>3) {
-            std::cerr<<"Usage: spatial-navigator [--smoke-test [capture.ppm]]\n";
-            return 2;
-        }
-        smoke=true;
-        if (argc==3) capture=argv[2];
+    std::filesystem::path start=".";
+    bool path_set=false;
+    const auto usage=[] { std::cerr<<"Usage: spatial-navigator [directory] [--smoke-test [capture.ppm]]\n"; };
+    for (int i=1;i<argc;++i) {
+        const std::string_view arg=argv[i];
+        if (arg=="--help") { usage(); return 0; }
+        if (arg=="--smoke-test" && !smoke) {
+            smoke=true;
+            if (i+1<argc && !std::string_view(argv[i+1]).starts_with('-')) capture=argv[++i];
+        } else if (!arg.starts_with('-') && !path_set) {
+            start=argv[i]; path_set=true;
+        } else { usage(); return 2; }
     }
     try {
         Runtime runtime;
@@ -78,7 +83,7 @@ int main(int argc,char** argv) {
         require(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE)==0,"Set core profile");
         require(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1)==0,"Set double buffering");
         require(SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,24)==0,"Set depth buffer");
-        runtime.window=SDL_CreateWindow("Spatial navigator - Milestone 2",SDL_WINDOWPOS_CENTERED,
+        runtime.window=SDL_CreateWindow("Spatial navigator - Milestone 3",SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,1100,720,SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
         require(runtime.window!=nullptr,"Create window");
         SDL_SetWindowMinimumSize(runtime.window,720,480);
@@ -89,15 +94,16 @@ int main(int argc,char** argv) {
         const bool vsync=SDL_GL_GetSwapInterval()!=0;
         IMGUI_CHECKVERSION();
         ImGui::CreateContext(); runtime.imgui=true;
-        ImGui::GetIO().IniFilename=nullptr; // No persistence or filesystem access for this prototype.
+        ImGui::GetIO().IniFilename=nullptr; // No UI persistence. Filesystem reads belong to the background loader.
         ImGui::StyleColorsDark();
         require(ImGui_ImplSDL2_InitForOpenGL(runtime.window,runtime.context),"Initialize ImGui SDL2 backend");
         runtime.platform=true;
         require(ImGui_ImplOpenGL3_Init("#version 330 core"),"Initialize ImGui OpenGL backend");
         runtime.renderer=true;
-        spatial::Browser browser;
+        spatial::Browser browser(start);
         spatial::Renderer renderer(browser.scene.boxes,browser.scene.grid_origin);
-        bool running=true, smoke_checked=false;
+        bool running=true, smoke_checked=false, smoke_started=!smoke;
+        const auto smoke_deadline=SDL_GetTicks64()+30'000;
         std::optional<std::size_t> click_target;
         const auto act=[&](spatial::UiAction action) {
             if (action.kind==spatial::ActionKind::None) return;
@@ -156,7 +162,7 @@ int main(int argc,char** argv) {
                 }
             }
             if (!running) break;
-            if (smoke) {
+            if (smoke && smoke_started) {
                 if (frames==5) {
                     for (std::size_t i=0;i<browser.layout.objects.size();++i)
                         if (browser.layout.objects[i].item.category==spatial::Category::Directory) {
@@ -171,6 +177,13 @@ int main(int argc,char** argv) {
             browser.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
             if (browser.scene_revision!=revision)
                 renderer.set_scene(browser.scene.boxes,browser.scene.grid_origin);
+            if (smoke && !smoke_started) {
+                if (!browser.loading()) {
+                    if (browser.filesystem.state(spatial::root_id).state==spatial::LoadState::Error)
+                        throw std::runtime_error(browser.status);
+                    smoke_started=true;
+                } else if (SDL_GetTicks64()>smoke_deadline) throw std::runtime_error("Smoke test: initial filesystem load timed out");
+            }
             int width=0,height=0;
             SDL_GL_GetDrawableSize(runtime.window,&width,&height);
             if (width>0 && height>0 && !(SDL_GetWindowFlags(runtime.window)&SDL_WINDOW_MINIMIZED)) {
@@ -178,7 +191,7 @@ int main(int argc,char** argv) {
                 ImGui_ImplSDL2_NewFrame();
                 ImGui::NewFrame();
                 act(spatial::overlay(browser.filesystem,browser.navigation,browser.layout,
-                    browser.camera,browser.animations,static_cast<float>(panel_width)));
+                    browser.camera,browser.animations,static_cast<float>(panel_width),browser.now(),browser.status,browser.real_filesystem()));
                 spatial::scene_labels(browser.scene,browser.camera,static_cast<float>(panel_width),
                     static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height));
                 ImGui::Render();
@@ -195,7 +208,7 @@ int main(int argc,char** argv) {
             } else {
                 SDL_Delay(16);
             }
-            ++frames;
+            if (smoke_started) ++frames;
             if (smoke && frames==90) {
                 SDL_Event quit{}; quit.type=SDL_QUIT;
                 require(SDL_PushEvent(&quit)==1,"Queue smoke-test shutdown");

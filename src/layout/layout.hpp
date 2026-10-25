@@ -11,5 +11,6 @@ struct Layout {
     Vec3 origin{};
     std::size_t page=0, pages=1, total_entries=0;
 };
+Vec3 layout_slot(std::size_t index,const LayoutConfig& config={});
 Layout arrange(std::span<const Item> items,std::size_t page=0,Vec3 origin={},const LayoutConfig& config={});
 }

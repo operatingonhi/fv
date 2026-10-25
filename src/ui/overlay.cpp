@@ -5,17 +5,18 @@
 #include <algorithm>
 
 namespace spatial {
-UiAction overlay(const MockFilesystem& fs,const Navigation& navigation,const Layout& layout,
-    const Camera& camera,bool& animations,float panel_width) {
+UiAction overlay(const Filesystem& fs,const Navigation& navigation,const Layout& layout,
+    const Camera& camera,bool& animations,float panel_width,std::int64_t now,const std::string& status,bool real) {
     UiAction action;
     ImGui::SetNextWindowPos({8,8},ImGuiCond_Always);
     ImGui::SetNextWindowSize({panel_width-16,ImGui::GetIO().DisplaySize.y-16},ImGuiCond_Always);
     ImGui::Begin("Spatial navigator",nullptr,ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoCollapse);
-    ImGui::TextUnformatted("MILESTONE 2 / MEMORY ONLY");
+    ImGui::TextUnformatted(real ? "MILESTONE 3 / FILESYSTEM":"MOCK REGRESSION FIXTURE");
     const auto path=navigation.path(fs);
     ImGui::TextWrapped("%s",path.c_str());
-    ImGui::Text("%zu entries / %zu objects",layout.total_entries,layout.objects.size());
+    ImGui::Text("Loaded: %zu entries / %zu objects",layout.total_entries,layout.objects.size());
     ImGui::Text("Camera: %s",camera.moving() ? "moving":"ready");
+    ImGui::TextWrapped("%s",status.c_str());
     ImGui::BeginDisabled(!navigation.can_go_up());
     if (ImGui::Button("Parent (Backspace)")) action={ActionKind::Up};
     ImGui::EndDisabled();
@@ -28,16 +29,23 @@ UiAction overlay(const MockFilesystem& fs,const Navigation& navigation,const Lay
     ImGui::BeginDisabled(layout.page+1>=layout.pages);
     if (ImGui::Button(">")) action={ActionKind::NextPage};
     ImGui::EndDisabled();
-    const float list_height=std::max(80.0f,ImGui::GetContentRegionAvail().y-210.0f);
+    const float list_height=std::max(80.0f,ImGui::GetContentRegionAvail().y-260.0f);
     if (ImGui::BeginChild("Objects",{0,list_height},ImGuiChildFlags_Borders)) {
         for (std::size_t i=0;i<layout.objects.size();++i) {
             const auto& item=layout.objects[i].item;
             const auto color=semantic_color(item.category);
             ImGui::PushID(static_cast<int>(i));
             ImGui::PushStyleColor(ImGuiCol_Text,ImVec4{color.x,color.y,color.z,1});
-            const auto label=item.label+(item.group==GroupKind::None ? "":" ["+std::to_string(item.members.size())+"]");
-            if (ImGui::Selectable(label.c_str(),i==navigation.selected(),ImGuiSelectableFlags_AllowDoubleClick))
+            auto label=item.label+(item.group==GroupKind::None ? "":" ["+std::to_string(item.members.size())+"]");
+            if (item.group==GroupKind::None) {
+                const auto& entry=fs.entry(item.members.front());
+                if (!entry.error.empty() || fs.state(entry.id).state==LoadState::Error) label+=" (unavailable)";
+            }
+            const auto text_position=ImGui::GetCursorScreenPos();
+            if (ImGui::Selectable("##entry",i==navigation.selected(),ImGuiSelectableFlags_AllowDoubleClick))
                 action={ImGui::IsMouseDoubleClicked(0) ? ActionKind::Open:ActionKind::Focus,i};
+            // Filenames containing ## are text, not ImGui widget identifiers.
+            ImGui::GetWindowDrawList()->AddText(text_position,ImGui::GetColorU32(ImGuiCol_Text),label.c_str());
             ImGui::PopStyleColor();
             ImGui::PopID();
         }
@@ -48,8 +56,23 @@ UiAction overlay(const MockFilesystem& fs,const Navigation& navigation,const Lay
         ImGui::TextWrapped("%s",item.label.c_str());
         ImGui::Text("%s / salience %.2f",category_name(item.category),item.salience);
         if (item.group!=GroupKind::None) ImGui::Text("%zu members (expand to inspect)",item.members.size());
-        else ImGui::Text("Modified: %lld hours ago",static_cast<long long>(
-            std::max<std::int64_t>(0,mock_now-fs.entry(item.members.front()).modified)/3600));
+        else {
+            const auto& entry=fs.entry(item.members.front());
+            if (entry.modified_known) ImGui::Text("Modified: %lld hours ago",static_cast<long long>(
+                std::max<std::int64_t>(0,now-entry.modified)/3600));
+            else ImGui::TextUnformatted("Modified: unavailable");
+            if (entry.size_known) ImGui::Text("Size: %llu bytes",static_cast<unsigned long long>(entry.bytes));
+            if (entry.permissions!=std::filesystem::perms::unknown)
+                ImGui::Text("Permissions: %04o%s",static_cast<unsigned>(entry.permissions)&07777u,entry.executable ? " executable":"");
+            if (entry.kind==EntryKind::Directory) {
+                const auto& state=fs.state(entry.id);
+                ImGui::TextUnformatted(state.loading ? "Loading preview...":state.state==LoadState::Unloaded ? "Preview not loaded":
+                    state.state==LoadState::Preview ? "Partial preview":state.state==LoadState::Error ? "Directory unavailable":"Contents loaded");
+                if (!state.message.empty()) ImGui::TextWrapped("%s",state.message.c_str());
+            }
+            if (entry.kind==EntryKind::Symlink) ImGui::TextWrapped("Link -> %s (not traversed)",entry.link_target.c_str());
+            if (!entry.error.empty()) ImGui::TextWrapped("%s",entry.error.c_str());
+        }
         if (ImGui::Button("Focus (F)")) action={ActionKind::Focus,navigation.selected()};
         ImGui::SameLine();
         if (ImGui::Button("Enter / expand")) action={ActionKind::Open,navigation.selected()};

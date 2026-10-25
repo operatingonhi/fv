@@ -4,30 +4,6 @@
 #include <stdexcept>
 
 namespace spatial {
-MockFilesystem::MockFilesystem() {
-    entries_.push_back({root_id,root_id,"mock",EntryKind::Directory,mock_now});
-}
-EntryId MockFilesystem::add(EntryId parent,std::string name,EntryKind kind,std::int64_t modified,bool executable) {
-    if (entry(parent).kind!=EntryKind::Directory || name.empty() || name.find('/')!=std::string::npos || name=="." || name=="..")
-        throw std::invalid_argument("Invalid mock entry");
-    for (auto id:children(parent))
-        if (entry(id).name==name) throw std::invalid_argument("Duplicate mock entry");
-    const EntryId id=entries_.size();
-    entries_.push_back({id,parent,std::move(name),kind,modified,executable});
-    return id;
-}
-std::vector<EntryId> MockFilesystem::children(EntryId parent) const {
-    entry(parent); // Validate the ID, even for an empty directory.
-    std::vector<EntryId> result;
-    for (const auto& item:entries_)
-        if (item.id!=root_id && item.parent==parent) result.push_back(item.id);
-    return result;
-}
-std::string MockFilesystem::path(EntryId id) const {
-    const auto& item=entry(id);
-    if (id==root_id) return "/mock";
-    return path(item.parent)+"/"+item.name;
-}
 MockFilesystem make_mock_filesystem() {
     MockFilesystem fs;
     const auto dir=[&](EntryId parent,const char* name) {

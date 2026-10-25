@@ -2,6 +2,8 @@
 #include "layout/layout.hpp"
 #include <limits>
 #include <map>
+#include <optional>
+#include <unordered_map>
 
 namespace spatial {
 using NodeId=std::size_t;
@@ -23,6 +25,7 @@ struct LayoutNode {
     unsigned depth=0;
     LocalTransform transform;
     GroupKind group=GroupKind::None;
+    std::optional<EntryId> directory;
     std::vector<Item> items;
     Layout local, world;
     std::vector<NodeId> children;
@@ -33,6 +36,7 @@ class Hierarchy {
 public:
     void initialize(std::vector<DirectoryItems> directories,std::vector<Item> individuals);
     const LayoutNode& node(NodeId id) const { return nodes_.at(id); }
+    void upsert_directory(DirectoryItems directory,std::vector<Item> individuals);
     NodeId child(NodeId id,std::size_t index) const;
     void ensure_preview(NodeId id,unsigned depth);
     void set_page(NodeId id,std::size_t page);
@@ -40,13 +44,15 @@ public:
     Vec3 focus(NodeId id) const { return node(id).transform.point(diorama_focus); }
     std::size_t size() const { return nodes_.size(); }
     HierarchyConfig config;
+    LayoutConfig layout_config;
 private:
-    NodeId add(std::vector<Item> items,NodeId parent,LocalTransform transform,GroupKind group);
+    NodeId add(std::vector<Item> items,NodeId parent,LocalTransform transform,GroupKind group,std::optional<EntryId> directory={});
+    void replace_contents(NodeId id,std::vector<Item> items,bool preserve_order);
     void arrange_node(NodeId id,std::size_t page);
     void expand(NodeId id,unsigned depth);
     void collect(NodeId id);
-    std::vector<DirectoryItems> directories_;
-    std::vector<Item> individuals_;
+    std::unordered_map<EntryId,std::vector<Item>> directories_;
+    std::unordered_map<EntryId,Item> individuals_;
     std::vector<LayoutNode> nodes_;
     std::vector<NodeId> visible_;
 };
