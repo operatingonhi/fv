@@ -48,12 +48,24 @@ The root `/` has no parent context. An unreadable parent reports status while
 keeping the CWD usable. These surroundings are context geometry; selection and
 picking remain in the CWD. History caches and restores the matching backdrop.
 
-Ordinary parent/child navigation
-zooms through its existing nested geometry. Backspace at the initial root, or
-entry beyond the six-level geometry cap, starts another bounded world; unrelated
-path jumps also use a controlled scene change. Invalid/inaccessible paths report
-status without terminating. Path entry supports absolute paths, paths relative
-to the current directory, and `~`/`~/`; no shell expansion is performed.
+Ordinary parent/child navigation zooms through its existing nested geometry.
+The scene draws the CWD and its immediate parent/siblings, without grandparent
+objects. Deep directory entry periodically rebases cached metadata and local
+layout anchors into a fresh browsing frame before scales become too small.
+The displayed camera pose is mapped into that frame before the normal zoom,
+so crossing a cache boundary preserves its screen position.
+
+Ascending beyond the starting directory promotes the cached parent backdrop
+and grafts the CWD's existing contents into it, then zooms out. If parent data
+is not ready, the current view remains in place while it loads; Esc cancels
+that pending ascent. Recent boundary returns restore the original parent page,
+selection and group context through bounded history. After history eviction,
+the cached immediate parent can still be promoted for animated ascent.
+Unrelated path/history jumps retain controlled scene changes.
+
+Invalid/inaccessible paths report status without terminating. Path entry supports
+absolute paths, paths relative to the current directory, and `~`/`~/`; no shell
+expansion is performed.
 
 An optional GUI smoke test waits for initial filesystem loading, then exercises
 camera motion, directory entry/return, resize, rendering, and normal SDL shutdown:
@@ -89,9 +101,12 @@ The policy is deliberately bounded and explicit:
 - Grandchildren are not read recursively at startup. They load progressively
   when their parent becomes active. Visited metadata and pages are cached.
 - `LoadPolicy` isolates the fallback preview size; `HierarchyConfig` retains the existing
-  three-level visual preview and six-level total geometry nesting cap, counting
-  groups/summaries. Navigation beyond that cap starts another bounded world; seamless
-  visual rebasing remains future refinement. The visual preview depth never causes filesystem traversal.
+  three-level visual preview and six-level cached geometry nesting cap, counting
+  groups/summaries. Real directory navigation rebases at three nested levels to
+  keep active browsing coordinates well above the camera's minimum scale. Cached
+  branch copies remain within the geometry depth cap; inactive pages retain
+  anchors and analyzed metadata for lazy recreation. Preview depth never causes
+  filesystem traversal.
 
 Directory floors and world transforms exist before their contents finish
 loading. Results populate those same dioramas. Existing objects keep their
@@ -400,9 +415,9 @@ GUI validation: this execution environment cannot connect to X11 and has no
 - Check editing fields/popups consume their keys, Esc cancels without quitting,
   and the window-manager close button/i3 close command shuts down cleanly.
 
-Seamless world-root/depth rebasing, cache eviction/refresh/watchers, Unicode-aware
-search, indexing, profiling, and further visual/performance refinements are
-intentionally deferred. Milestone 6 has not begun.
+Cache eviction/refresh/watchers, Unicode-aware search and indexing remain
+intentionally deferred. Milestones 1–6 are complete; subsequent changes refine
+label visibility, sibling context and continuous boundary navigation.
 
 ## Layer boundaries
 

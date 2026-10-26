@@ -248,6 +248,15 @@ groups and remainder summaries, with the current directory represented
 individually on the chosen parent page. The filesystem root has no such backdrop;
 an unreadable parent must leave the current directory usable.
 
+Only the current directory, its descendants at the configured detail level, and
+its immediate parent/siblings need to be drawn. Do not draw grandparent objects.
+Crossing a cached scene boundary during ordinary directory navigation must retain
+a continuous zoom. Rebase cached metadata/layouts into a local browsing frame
+before small scales lose precision; map the displayed camera pose into that
+frame without a screen-space jump. An unseen parent may load asynchronously,
+keeping the current view until its spatial context can be used for the ascent.
+
+
 
 ---
 

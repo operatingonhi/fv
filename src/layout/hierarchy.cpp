@@ -30,6 +30,48 @@ void Hierarchy::initialize(std::vector<DirectoryItems> directories,std::vector<I
     add(directories_.at(root_id),no_node,{},GroupKind::None,root_id);
     ensure_preview(0,config.preview_depth);
 }
+std::unordered_map<NodeId,NodeId> Hierarchy::copy_branch(NodeId source,Hierarchy& destination,NodeId target,const EntryMap& entries) const {
+    const auto remap_item=[&](Item item) {
+        for (auto& member:item.members) member=entries.at(member);
+        return item;
+    };
+    for (const auto& [id,items]:directories_) if (entries.contains(id)) {
+        auto& copied=destination.directories_[entries.at(id)]; copied.clear();
+        for (const auto& item:items) copied.push_back(remap_item(item));
+    }
+    for (const auto& [id,item]:individuals_) if (entries.contains(id))
+        destination.individuals_[entries.at(id)]=remap_item(item);
+    std::unordered_map<NodeId,NodeId> mapping;
+    const auto clone=[&](auto&& self,NodeId from,NodeId to)->void {
+        const auto parent=destination.nodes_[to].parent;
+        const auto depth=destination.nodes_[to].depth;
+        const auto transform=destination.nodes_[to].transform;
+        auto copied=nodes_[from];
+        copied.parent=parent; copied.depth=depth; copied.transform=transform;
+        if (copied.directory) copied.directory=entries.at(*copied.directory);
+        for (auto& item:copied.items) item=remap_item(std::move(item));
+        for (auto& object:copied.local.objects) object.item=remap_item(std::move(object.item));
+        copied.world=copied.local; copied.world.origin=copied.transform.translation;
+        for (auto& object:copied.world.objects) {
+            object.center=copied.transform.point(object.center); object.size=object.size*copied.transform.scale;
+        }
+        copied.children.assign(copied.local.objects.size(),no_node); copied.children_by_page.clear();
+        destination.nodes_[to]=std::move(copied); mapping[from]=to;
+        // Inactive pages retain their anchors and cached analyzed entries; their
+        // child nodes can be recreated lazily, without copying unrelated scenes.
+        const auto children=nodes_[from].children;
+        for (std::size_t i=0;i<children.size();++i) if (children[i]!=no_node && depth<destination.config.max_depth) {
+            const auto child_transform=compose(destination.nodes_[to].transform,contained_transform(destination.nodes_[to].local.objects[i]));
+            const auto next=destination.add({},to,child_transform,GroupKind::None);
+            self(self,children[i],next);
+            destination.nodes_[to].children[i]=next;
+        }
+        destination.nodes_[to].children_by_page[destination.nodes_[to].local.page]=destination.nodes_[to].children;
+    };
+    clone(clone,source,target);
+    destination.visible_.clear(); destination.collect(0);
+    return mapping;
+}
 NodeId Hierarchy::add(std::vector<Item> items,NodeId parent,LocalTransform transform,GroupKind group,std::optional<EntryId> directory) {
     const NodeId id=nodes_.size();
     LayoutNode node;

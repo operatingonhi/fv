@@ -231,6 +231,46 @@ void parent_frame() {
         }
     }
 }
+void cached_branch_copy() {
+    Filesystem source("/cache");
+    const auto directory=source.add(0,"branch",EntryKind::Directory,mock_now);
+    for (int i=0;i<35;++i) source.add(directory,"file-"+std::to_string(i*3)+".txt",EntryKind::File,mock_now);
+    const auto broken=source.add(directory,"broken-link",EntryKind::Symlink,mock_now);
+    DirectoryListing listing; listing.directory=source.entry(directory);
+    for (auto id:source.children(directory)) {
+        auto entry=source.entry(id);
+        if (id==broken) { entry.broken_link=true; entry.error="Missing target"; }
+        listing.entries.push_back(std::move(entry));
+    }
+    source.apply(directory,std::move(listing)); source.mark_loading(directory);
+    std::vector<EntryId> all;
+    for (EntryId id=0;id<source.size();++id) all.push_back(id);
+    Hierarchy original;
+    original.initialize({{0,analyze(source,source.children(0),mock_now)},
+        {directory,analyze(source,source.children(directory),mock_now)}},analyze(source,all,mock_now,{},false));
+    const auto node=original.child(0,0); original.set_page(node,1);
+    Filesystem copied("/relocated"); const auto mapping=source.copy_subtree(directory,copied,0);
+    check(copied.children(0).size()==36 && copied.state(0).state==LoadState::Ready && !copied.state(0).loading,
+        "Cached metadata, including completeness, copies without inheriting queued worker state");
+    check(copied.entry(mapping.at(broken)).broken_link && copied.entry(mapping.at(broken)).error=="Missing target",
+        "Cache copying preserves broken-link metadata and errors");
+    for (auto id:copied.children(0)) check(copied.entry(id).parent==0 &&
+        copied.entry(id).full_path=="/relocated/"+copied.entry(id).name,"Copied entries retain destination paths and parent IDs");
+    Hierarchy hierarchy; hierarchy.initialize({{0,{}}},{});
+    original.copy_branch(node,hierarchy,0,mapping);
+    const auto& before=original.node(node).local;
+    const auto after=hierarchy.node(0).world;
+    check(after.page==1 && after.objects.size()==before.objects.size(),"Rebased branch preserves its active page and density");
+    for (std::size_t i=0;i<before.objects.size();++i) {
+        check(same(before.objects[i].center,after.objects[i].center) && same(before.objects[i].size,after.objects[i].size),
+            "Rebased branch retains local anchors and dimensions");
+        for (std::size_t j=0;j<before.objects[i].item.members.size();++j)
+            check(after.objects[i].item.members[j]==mapping.at(before.objects[i].item.members[j]),"Compound and summary members remap to the copied filesystem");
+    }
+    hierarchy.set_page(0,0); hierarchy.set_page(0,1);
+    for (std::size_t i=0;i<after.objects.size();++i) check(same(after.objects[i].center,hierarchy.node(0).world.objects[i].center),
+        "Rebased page round trip preserves cached anchors");
+}
 void camera_boundaries() {
     Camera camera;
     camera.animation_duration=0; camera.focus({1,0,0});
@@ -246,6 +286,6 @@ void camera_boundaries() {
 }
 }
 int main() {
-    try { paging(); stable_loading(); stress(); display_and_lod(); immediate_contents(); parent_frame(); camera_boundaries(); }
+    try { paging(); stable_loading(); stress(); display_and_lod(); immediate_contents(); parent_frame(); cached_branch_copy(); camera_boundaries(); }
     catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

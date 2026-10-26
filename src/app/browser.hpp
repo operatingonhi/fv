@@ -19,7 +19,7 @@ public:
     explicit Browser(const std::filesystem::path& start);
     bool real_filesystem() const { return loader_!=nullptr; }
     std::int64_t now() const { return now_; }
-    bool loading() const { return !pending_.empty() || !validations_.empty() || (surroundings_ && !surroundings_->pending.empty()); }
+    bool loading() const { return pending_parent_ || !pending_.empty() || !validations_.empty() || (surroundings_ && !surroundings_->pending.empty()); }
     // Parent backdrop of this cached world (deeper ancestors are in hierarchy).
     std::optional<std::filesystem::path> surrounding_directory() const;
     const QuerySpec& query() const { return query_; }
@@ -58,7 +58,14 @@ private:
         std::vector<SceneBox> boxes;
         std::string error;
     };
-    struct World { std::optional<Filesystem> filesystem; std::optional<Hierarchy> hierarchy; std::optional<Surroundings> surroundings; };
+    struct ParentReturn { std::size_t state; EntryId directory; LocalTransform frame; };
+    struct World {
+        std::optional<Filesystem> filesystem;
+        std::optional<Hierarchy> hierarchy;
+        std::optional<Surroundings> surroundings;
+        std::optional<ParentReturn> parent_return;
+        std::optional<std::filesystem::path> path;
+    };
     struct View {
         std::shared_ptr<World> world;
         NavigationSnapshot navigation;
@@ -67,12 +74,17 @@ private:
         CameraState camera;
         QuerySpec query;
     };
-    enum class Purpose { Location, History, Activate, Terminal, Surroundings };
+    enum class Purpose { Location, History, Activate, Terminal, Surroundings, Parent };
     struct Validation { Purpose purpose; std::size_t history_index=0,history_state=0,generation=0; };
     void request_surroundings();
     void schedule_surroundings();
     void apply_surroundings(LoadResult result);
     void refresh_surroundings();
+    void enter_rebased(NodeId child,EntryId directory,bool remember_parent=true);
+    void try_ascend();
+    bool return_to_cached_parent();
+    void cancel_parent();
+    Surroundings cached_parent(EntryId directory) const;
     void initialize(std::vector<DirectoryItems> directories,std::vector<Item> individuals);
     void request_directory(EntryId id,bool full,bool explicit_request=false);
     void schedule_previews();
@@ -99,6 +111,8 @@ private:
     std::int64_t now_=mock_now;
     std::unique_ptr<DirectoryLoader> loader_;
     std::optional<Surroundings> surroundings_;
+    std::optional<ParentReturn> parent_return_;
+    std::optional<std::filesystem::path> world_path_,pending_parent_;
     std::vector<LoadResult> deferred_;
     std::map<EntryId,bool> pending_;
     bool apply_deferred_=false;

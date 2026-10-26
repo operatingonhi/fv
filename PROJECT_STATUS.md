@@ -65,7 +65,7 @@
 ## Remaining boundaries
 
 No watcher/automatic refresh, fine-grained cache eviction, Unicode-aware search,
-filesystem index, or seamless rebasing across bounded worlds. Analysis/merging
+or filesystem index. Analysis/merging
 still run on the main thread after asynchronous enumeration. Extremely large
 listings can therefore cause a preparation pause. Cached history/worlds retain
 memory. Kernel-blocked filesystem calls may delay worker shutdown. Fallback focus
@@ -164,3 +164,44 @@ search; verify only the CWD heading and its immediate entry names are displayed.
 Current-level label validation: Debug and Release builds passed all six suites;
 `git diff --check` passed. GUI smoke launch stopped at
 `Initialize SDL2: x11 not available`; visual verification remains manual.
+
+
+## Continuous ascent and bounded ancestor rendering
+
+The jumps came from explicit non-animated camera resets at world-root/depth
+boundaries. Real directory entry now rebases at three nested levels, cloning
+cached metadata with remapped IDs and preserving local layout anchors, pages,
+compound members and preview completeness. The incoming displayed camera pose
+is transformed into the new frame before the normal zoom. Rebased layouts keep
+the existing geometry depth cap; distant analyzed data can recreate pages lazily.
+
+Up at a rebased root validates the parent and returns to its original cached
+page/selection/group when that history state still exists. New child metadata is
+grafted back before zooming out. Return links are numeric history handles, so
+they do not retain worlds beyond the existing 64-entry history bound. Once a
+handle has been evicted, the immediate parent backdrop is promoted to the active
+world, retaining the old CWD branch and mapping the camera for the zoom-out.
+Unseen parents use the same promotion after worker loading; the current scene
+stays visible while waiting. Esc cancels a waiting ascent. Disabled/zero-duration
+animation settings still take effect. Root `/` remains a no-op for Up.
+
+Presentation now starts at the immediate parent of the CWD. The world's external
+backdrop is merged only at its root; it is omitted when the current directory
+already has a parent in the main hierarchy. Grandparent planes and objects are
+not drawn. Current-level-only names and all existing navigation controls remain.
+Unrelated absolute-path/history jumps still use controlled scene changes.
+
+New tests traverse forty directory levels down and back up, including history
+eviction, and compare projected directory positions at rebase/ascent boundaries.
+They also check zoom midpoints, unknown-parent ascent, interrupted boundary
+reversal, disabled animations, cancellation, returning into Other entries,
+metadata/error/path/ID copying, anchor/page conservation, and absence of
+higher-ancestor geometry. Visual camera feel still needs X11 inspection.
+
+Continuous-ascent validation: Debug and Release builds passed all six suites,
+including the forty-level traversal, interruption, group-return, cache-copy and
+ancestor-culling regressions. `git diff --check` passed. GUI smoke launch stopped
+at `Initialize SDL2: x11 not available`; no visual verification is claimed.
+Manual X11 checks: descend past ten levels and repeatedly use Parent/Backspace;
+ascend above the startup directory; reverse a zoom mid-transition; verify only
+immediate sibling context is drawn and that names remain limited to the CWD.

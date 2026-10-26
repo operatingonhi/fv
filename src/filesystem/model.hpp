@@ -5,9 +5,11 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace spatial {
 using EntryId=std::size_t;
+using EntryMap=std::unordered_map<EntryId,EntryId>;
 inline constexpr EntryId root_id=0;
 enum class EntryKind { Directory, File, Symlink, Other };
 struct Entry {
@@ -46,6 +48,8 @@ public:
     void mark_loading(EntryId id) { states_.at(id).loading=true; }
     void clear_loading() { for (auto& state:states_) state.loading=false; }
     void apply(EntryId directory,DirectoryListing listing);
+    // Copy cached metadata only; preserve destination identity and return ID mapping.
+    EntryMap copy_subtree(EntryId source,Filesystem& destination,EntryId target) const;
 private:
     std::vector<Entry> entries_;
     std::vector<std::vector<EntryId>> children_;

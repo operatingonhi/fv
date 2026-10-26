@@ -3,6 +3,28 @@
 #include <algorithm>
 
 namespace spatial {
+EntryMap Filesystem::copy_subtree(EntryId source,Filesystem& destination,EntryId target) const {
+    EntryMap mapping{{source,target}};
+    std::vector<EntryId> queue{source};
+    for (std::size_t i=0;i<queue.size();++i) {
+        const auto id=queue[i], copied_id=mapping.at(id);
+        const auto identity=destination.entry(copied_id);
+        auto copy=entry(id);
+        copy.id=copied_id; copy.parent=identity.parent; copy.full_path=identity.full_path;
+        if (copied_id!=root_id || (identity.name!="." && identity.name!=".." && !identity.name.empty())) copy.name=identity.name;
+        copy.hidden=copy.name.starts_with('.');
+        destination.entries_[copied_id]=std::move(copy);
+        destination.states_[copied_id]=state(id); destination.states_[copied_id].loading=false;
+        for (auto child:children(id)) {
+            const auto& item=entry(child);
+            const auto found=destination.names_[copied_id].find(item.name);
+            const auto copied_child=found==destination.names_[copied_id].end() ?
+                destination.add(copied_id,item.name,item.kind,item.modified,item.executable):found->second;
+            mapping.emplace(child,copied_child); queue.push_back(child);
+        }
+    }
+    return mapping;
+}
 Filesystem::Filesystem(std::string root) {
     Entry entry;
     entry.name=std::filesystem::path(root).filename().string();

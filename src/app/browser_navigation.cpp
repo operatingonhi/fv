@@ -25,6 +25,8 @@ void Browser::stash_world() {
     world_->filesystem=std::move(filesystem); world_->hierarchy=std::move(hierarchy);
     if (surroundings_) { surroundings_->pending.clear(); surroundings_->filesystem.clear_loading(); }
     world_->surroundings=std::move(surroundings_); surroundings_.reset();
+    world_->parent_return=parent_return_; parent_return_.reset();
+    world_->path=world_path_; world_path_.reset(); pending_parent_.reset();
     pending_.clear(); deferred_.clear(); apply_deferred_=false; ++generation_;
     if (loader_) loader_->discard_reads_except(generation_);
     levels_.clear(); scratch_levels_.clear();
@@ -38,6 +40,7 @@ void Browser::restore_view(std::size_t state) {
         stash_world(); world_=view.world;
         filesystem=std::move(*world_->filesystem); hierarchy=std::move(*world_->hierarchy);
         surroundings_=std::move(world_->surroundings); world_->surroundings.reset();
+        parent_return_=world_->parent_return; world_path_=world_->path;
         world_->filesystem.reset(); world_->hierarchy.reset();
     }
     // Restore ancestor pages before resolving child nodes. A history entry can
@@ -84,7 +87,7 @@ void Browser::restore_view(std::size_t state) {
 void Browser::validate(const std::filesystem::path& path,Validation action,bool directory_only) {
     if (!loader_) return;
     const auto tag=next_validation_++;
-    if (action.purpose==Purpose::Location || action.purpose==Purpose::History) {
+    if (action.purpose==Purpose::Location || action.purpose==Purpose::History || action.purpose==Purpose::Parent) {
         if (location_tag_) validations_.erase(location_tag_);
         location_tag_=tag;
     }
@@ -92,6 +95,7 @@ void Browser::validate(const std::filesystem::path& path,Validation action,bool 
     notice="Checking "+path.string();
 }
 void Browser::navigate(std::string text) {
+    cancel_parent();
     if (!loader_) { notice="Path entry requires a real filesystem source"; return; }
     if (location_tag_) { validations_.erase(location_tag_); location_tag_=0; }
     const auto* home=std::getenv("HOME");
@@ -100,6 +104,7 @@ void Browser::navigate(std::string text) {
     validate(parsed.path,{Purpose::Location},true);
 }
 void Browser::go_history(int delta) {
+    cancel_parent();
     const auto target=history.target(delta);
     if (!target) return;
     save_view();
@@ -108,6 +113,9 @@ void Browser::go_history(int delta) {
 }
 bool Browser::enter_existing(NodeId target) {
     save_view();
+    if (loader_ && hierarchy.node(target).directory && hierarchy.node(target).depth>=std::min(3u,hierarchy.config.max_depth)) {
+        enter_rebased(target,*hierarchy.node(target).directory,false); return true;
+    }
     std::vector<NodeId> chain;
     for (auto id=target;id!=0;id=hierarchy.node(id).parent) chain.push_back(id);
     std::reverse(chain.begin(),chain.end());
@@ -129,6 +137,9 @@ bool Browser::enter_existing(NodeId target) {
     schedule_previews(); record_view(); return true;
 }
 void Browser::open_location(const std::filesystem::path& path) {
+    if (current_==0 && !navigation.context().group && world_path_ && path!=*world_path_ && path==world_path_->parent_path()) {
+        pending_parent_=path; try_ascend(); return;
+    }
     for (auto node:hierarchy.visible_nodes()) {
         const auto directory=hierarchy.node(node).directory;
         if (directory && std::filesystem::path(filesystem.path(*directory)).lexically_normal()==path) {
@@ -142,6 +153,7 @@ void Browser::open_location(const std::filesystem::path& path) {
     save_view(); stash_world(); world_=std::make_shared<World>();
     filesystem=Filesystem(path.string()); navigation=Navigation{}; hierarchy=Hierarchy{};
     current_=0; parents_.clear(); query_.text.clear();
+    world_path_=path;
     hierarchy.initialize({DirectoryItems{0,{}}},{});
     camera.focus(hierarchy.focus(0),false,24);
     sync_view(); request_directory(0,true); request_surroundings(); record_view();
@@ -160,6 +172,8 @@ void Browser::process_validation(PathValidation result) {
     const auto action=pending->second; validations_.erase(pending);
     if (action.purpose==Purpose::Surroundings) {
         if (action.generation!=generation_) return;
+        if (result.error.empty()) world_path_=result.resolved;
+        else if (pending_parent_) { notice="Cannot prepare parent view: "+result.error; pending_parent_.reset(); }
         if (result.error.empty() && result.resolved.parent_path()!=result.resolved) {
             surroundings_.emplace(result.resolved.parent_path(),result.resolved);
             schedule_surroundings();
@@ -167,12 +181,18 @@ void Browser::process_validation(PathValidation result) {
         return;
     }
     if (result.tag==location_tag_) location_tag_=0;
+    if (action.purpose==Purpose::Parent && (action.generation!=generation_ || current_!=0 || navigation.context().group)) return;
     if (!result.error.empty()) {
         if (action.purpose==Purpose::History && action.history_index<history.entries().size() &&
             history.at(action.history_index).state==action.history_state) history.invalidate(action.history_index);
         notice=result.error; return;
     }
     switch (action.purpose) {
+    case Purpose::Parent:
+        notice.clear();
+        if (world_path_ && *world_path_==result.resolved) { notice="Already at filesystem root"; break; }
+        if (!return_to_cached_parent()) { pending_parent_=result.resolved; try_ascend(); }
+        break;
     case Purpose::Surroundings: break; // Handled separately from explicit user navigation above.
     case Purpose::Location: notice.clear(); open_location(result.resolved); break;
     case Purpose::History:

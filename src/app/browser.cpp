@@ -71,7 +71,7 @@ void Browser::refresh_scene() {
     detail_levels(hierarchy,camera,levels_);
     last_lod_camera_=camera.state(); ++lod_evaluations;
     scene=present(hierarchy,current_,navigation.selected(),levels_,appearances_,presentation_config);
-    if (surroundings_) scene.boxes.insert(scene.boxes.begin(),surroundings_->boxes.begin(),surroundings_->boxes.end());
+    if (current_==0 && surroundings_) scene.boxes.insert(scene.boxes.begin(),surroundings_->boxes.begin(),surroundings_->boxes.end());
     const auto& directory=filesystem.entry(navigation.context().directory);
     // Before metadata arrives, '.' and '..' are path syntax rather than names.
     // A path fallback also keeps the filesystem root visible (filename is empty).
@@ -145,6 +145,7 @@ void Browser::update(float seconds) {
     }
     if (status_changed) update_status();
     if (surroundings_changed) { if (!changed) refresh_scene(); update_status(); }
+    if (pending_parent_) try_ascend();
     camera.update(seconds);
     if (camera.state()!=last_lod_camera_) {
         detail_levels(hierarchy,camera,scratch_levels_,levels_);
@@ -254,9 +255,15 @@ void Browser::act(UiAction action) {
     }
     case ActionKind::Open: {
         if (action.index>=layout.objects.size() || !eligible(layout.objects[action.index].item)) return;
+        cancel_parent();
         select(action.index,false);
         const auto child=hierarchy.child(current_,action.index);
         save_view();
+        const auto& opening=layout.objects[action.index].item;
+        if (loader_ && child!=no_node && opening.group==GroupKind::None && opening.category==Category::Directory &&
+            hierarchy.node(child).depth>=std::min(3u,hierarchy.config.max_depth)) {
+            enter_rebased(child,opening.members.front()); break;
+        }
         if (child!=no_node && navigation.open(filesystem,layout.objects[action.index].item)) {
             parents_.push_back(current_); current_=child;
             navigation.restore_page(hierarchy.node(current_).world.page);
@@ -279,7 +286,7 @@ void Browser::act(UiAction action) {
         if (navigation.up()) {
             apply_deferred_=true; current_=parents_.back(); parents_.pop_back();
             sync_view(); focus_overview(); schedule_previews(); record_view();
-        } else if (loader_) navigate("..");
+        } else if (loader_) validate(std::filesystem::path(filesystem.path(root_id))/"..",{Purpose::Parent,0,0,generation_},true);
         break;
     case ActionKind::PreviousPage:
     case ActionKind::NextPage:
@@ -301,6 +308,7 @@ void Browser::act(UiAction action) {
     case ActionKind::Forward: go_history(1); break;
     case ActionKind::Terminal: terminal_here(); break;
     case ActionKind::Cancel:
+        pending_parent_.reset();
         std::erase_if(validations_,[](const auto& entry) { return entry.second.purpose!=Purpose::Surroundings; }); location_tag_=0;
         notice.clear(); query_.text.clear(); query_dirty_=true; refresh_scene(); break;
     }

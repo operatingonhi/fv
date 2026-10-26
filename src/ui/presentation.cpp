@@ -103,7 +103,9 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
     Presentation result;
     std::vector<NodeId> ancestors;
     for (auto id=current;id!=no_node;id=hierarchy.node(id).parent) ancestors.push_back(id);
-    enclosure(result.boxes,hierarchy.node(0).transform,GroupKind::None,semantic_color(Category::Directory)*0.6f);
+    const auto parent=hierarchy.node(current).parent;
+    const auto visible_root=parent==no_node ? current:parent;
+    enclosure(result.boxes,hierarchy.node(visible_root).transform,hierarchy.node(visible_root).group,semantic_color(Category::Directory)*0.6f);
     const auto visit=[&](auto&& self,NodeId id,unsigned depth)->void {
         if (id==current) depth=0;
         const auto& node=hierarchy.node(id);
@@ -152,7 +154,7 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
                 active ? selection_color:color,std::move(label),true,active,object.size.x,id==current});
         }
     };
-    visit(visit,0,0);
+    visit(visit,visible_root,0);
     return result;
 }
 }

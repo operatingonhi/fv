@@ -8,6 +8,7 @@ std::optional<std::filesystem::path> Browser::surrounding_directory() const {
 }
 void Browser::request_surroundings() {
     if (!loader_) return;
+    if (world_path_ && world_path_->parent_path()==*world_path_) return;
     if (surroundings_) { schedule_surroundings(); return; }
     // Resolve on the existing worker: a starting symlink or '..' must use its
     // actual parent, without filesystem queries in presentation/layout code.

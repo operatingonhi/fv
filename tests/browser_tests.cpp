@@ -1,5 +1,6 @@
 #include "app/browser.hpp"
 #include "navigation/path.hpp"
+#include "graphics/picking.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -240,6 +241,118 @@ void parent_surroundings(const fs::path& root) {
             "Unreadable parent preserves a usable CWD and reports the unavailable backdrop");
     } else std::cout<<"Parent permission check skipped for privileged process\n";
 }
+void continuous_deep_navigation(const fs::path& root) {
+    const auto family=root/"deep-navigation";
+    std::vector<fs::path> paths{family/"start"};
+    fs::create_directories(paths.front());
+    for (int i=0;i<40;++i) {
+        write(paths.back()/"note.txt");
+        fs::create_directory(paths.back()/"side"); write(paths.back()/"side"/"sibling-note.txt");
+        paths.push_back(paths.back()/"next"); fs::create_directory(paths.back());
+    }
+    write(paths.back()/"leaf.txt");
+    Browser browser(paths.front()); settle(browser);
+    const auto screen=[&](Vec3 point) {
+        const auto projected=project(point,browser.camera.view_projection(1.4f),840,600);
+        check(bool(projected),"Navigation marker remains projectable");
+        return *projected;
+    };
+    const auto same_screen=[&](auto a,auto b) {
+        check(std::abs(a.x-b.x)<0.05f && std::abs(a.y-b.y)<0.05f,
+            "Changing cached worlds must not jump the displayed directory position");
+    };
+    const auto check_window=[&] {
+        const auto parent=browser.hierarchy.node(browser.current_node()).parent;
+        if (parent==no_node) return;
+        const auto extent=16.0f*browser.hierarchy.node(parent).transform.scale+0.0001f;
+        for (const auto& box:browser.scene.boxes) check(box.size.x<=extent,"Only the immediate parent plane and siblings are drawn, without grandparent geometry");
+    };
+    for (std::size_t depth=1;depth<paths.size();++depth) {
+        const auto index=object(browser,"next");
+        const auto child=browser.hierarchy.child(browser.current_node(),index);
+        check(child!=no_node,"Nested child exists before entry");
+        const auto before=screen(browser.hierarchy.focus(child));
+        browser.act({ActionKind::Open,index});
+        same_screen(before,screen(browser.hierarchy.focus(browser.current_node())));
+        check(browser.camera.moving(),"Deep directory entry remains animated across rebase boundaries");
+        settle(browser);
+        check(browser.hierarchy.node(browser.current_node()).depth<3,"Deep navigation periodically normalizes the browsing frame");
+        check_window();
+    }
+    for (std::size_t depth=paths.size()-1;depth>0;--depth) {
+        const auto before=screen(browser.hierarchy.focus(browser.current_node()));
+        browser.act({ActionKind::Up});
+        const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+        while (fs::path(browser.filesystem.path(browser.navigation.context().directory)).lexically_normal()!=paths[depth-1]) {
+            check(std::chrono::steady_clock::now()<deadline,"Deep ascent completes without waiting indefinitely");
+            browser.update(0); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        const auto child=browser.hierarchy.child(browser.current_node(),object(browser,"next"));
+        check(child!=no_node,"Previous CWD remains represented in its parent");
+        same_screen(before,screen(browser.hierarchy.focus(child)));
+        check(browser.camera.moving(),"Deep ascent remains animated, including after history eviction");
+        const auto start=browser.camera.state().distance, target=browser.camera.settled_state().distance;
+        check(start<target,"Ascent starts at child scale and targets parent scale");
+        browser.update(0.2f);
+        check(browser.camera.state().distance>start && browser.camera.state().distance<target,"Ascent visibly interpolates instead of cutting");
+        settle(browser); check_window();
+    }
+    check(browser.history.entries().size()==64,"Long traversal keeps history bounded");
+    const auto ascend_unseen=[&](const fs::path& expected,const char* child_name) {
+        const auto before=screen(browser.hierarchy.focus(browser.current_node()));
+        browser.act({ActionKind::Up});
+        const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+        while (fs::path(browser.filesystem.path(browser.navigation.context().directory)).lexically_normal()!=expected) {
+            check(std::chrono::steady_clock::now()<deadline,"Unseen-parent ascent completes");
+            browser.update(0); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        const auto child=browser.hierarchy.child(browser.current_node(),object(browser,child_name));
+        check(child!=no_node,"Unseen parent retains the old CWD diorama");
+        same_screen(before,screen(browser.hierarchy.focus(child)));
+        check(browser.camera.moving(),"An unvisited parent zooms out rather than resetting the camera");
+        settle(browser);
+    };
+    ascend_unseen(family,"start"); ascend_unseen(root,"deep-navigation");
+    browser.act({ActionKind::Back}); settle(browser);
+    browser.act({ActionKind::Forward}); settle(browser);
+    check(browser.scene.context_name==root.filename().string(),"History remains usable after unseen-parent promotion");
+
+    Browser interrupted(paths[2]); settle(interrupted);
+    interrupted.act({ActionKind::Open,object(interrupted,"next")}); settle(interrupted);
+    interrupted.act({ActionKind::Open,object(interrupted,"next")}); settle(interrupted);
+    interrupted.act({ActionKind::Open,object(interrupted,"next")}); interrupted.update(0.1f);
+    const auto marker=project(interrupted.hierarchy.focus(interrupted.current_node()),interrupted.camera.view_projection(1.4f),840,600);
+    check(bool(marker),"Interrupted rebase marker projects");
+    interrupted.act({ActionKind::Up});
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+    while (fs::path(interrupted.filesystem.path(interrupted.navigation.context().directory)).lexically_normal()!=paths[4]) {
+        check(std::chrono::steady_clock::now()<deadline,"Interrupted boundary ascent completes");
+        interrupted.update(0); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    const auto child=interrupted.hierarchy.child(interrupted.current_node(),object(interrupted,"next"));
+    const auto reversed=project(interrupted.hierarchy.focus(child),interrupted.camera.view_projection(1.4f),840,600);
+    check(bool(reversed),"Reversed rebase marker projects"); same_screen(*marker,*reversed);
+    check(interrupted.camera.moving(),"Parent navigation reverses an active rebase transition without a jump");
+    settle(interrupted);
+    while (interrupted.navigation.can_go_up()) { interrupted.act({ActionKind::Up}); settle(interrupted); }
+    interrupted.animations=false;
+    interrupted.act({ActionKind::Up}); settle(interrupted);
+    check(!interrupted.camera.moving(),"Disabled animations also apply at unknown-parent boundaries");
+    Browser cancelled(paths.front()); cancelled.act({ActionKind::Up}); cancelled.act({ActionKind::Cancel}); settle(cancelled);
+    check(fs::path(cancelled.filesystem.path(cancelled.navigation.context().directory)).lexically_normal()==paths.front(),
+        "Escape cancels an ascent waiting for parent data");
+
+    const auto grouped=root/"grouped-boundary"; fs::create_directory(grouped);
+    for (int i=0;i<80;++i) { const auto path=grouped/("directory-"+std::to_string(i)); fs::create_directory(path); write(path/"own.txt"); }
+    Browser groups(grouped); settle(groups);
+    for (int i=0;i<2;++i) { groups.act({ActionKind::Open,object(groups,"Other entries")}); settle(groups); }
+    const auto members=groups.navigation.context().group->members;
+    groups.act({ActionKind::Open,0}); settle(groups);
+    check(groups.current_node()==0 && !groups.navigation.context().group,"Directory in a deeply nested summary rebases normally");
+    groups.act({ActionKind::Up}); settle(groups);
+    check(groups.navigation.context().group && groups.navigation.context().group->members==members,
+        "Ascent across a rebase returns to the original summary selection context");
+}
 void paged_history(const fs::path& root) {
     const auto paged=root/"paged"; fs::create_directory(paged);
     for (int i=0;i<27;++i) fs::create_directory(paged/("dir-"+std::to_string(i)));
@@ -257,7 +370,7 @@ void paged_history(const fs::path& root) {
 int main() {
     try {
         directional_selection(); queries_and_shared_selection(); paths_history_and_commands();
-        TemporaryDirectory temporary; real_navigation(temporary.path); paged_history(temporary.path); parent_surroundings(temporary.path);
+        TemporaryDirectory temporary; real_navigation(temporary.path); paged_history(temporary.path); parent_surroundings(temporary.path); continuous_deep_navigation(temporary.path);
         std::cout<<"Milestone 5 selection, search/filter, path, history and command tests passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }
