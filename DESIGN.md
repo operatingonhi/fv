@@ -332,6 +332,14 @@ Orbiting should allow the user to inspect the depth and nested structure of the 
 
 The camera should provide an easy way to return to the standard useful viewing orientation.
 
+The background floor grid should refine continuously with camera distance.
+Subdivisions fade in during approach and become fully visible after roughly
+three directory layers; zooming out reverses the fade. Keep major lines visible
+as minor lines vanish, with antialiasing to suppress subpixel shimmer. Browsing
+frame rebases must preserve grid phase and apparent spacing rather than reveal
+a replacement grid abruptly. The grid floor follows the browsing floor through
+the same short camera transition, independently of a selected file's height.
+
 Possible controls may include:
 
 - mouse drag

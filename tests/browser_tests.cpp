@@ -261,6 +261,22 @@ void continuous_deep_navigation(const fs::path& root) {
         check(std::abs(a.x-b.x)<0.05f && std::abs(a.y-b.y)<0.05f,
             "Changing cached worlds must not jump the displayed directory position");
     };
+    const auto grid_sample=[&](Vec3 point) {
+        const auto view=grid_view(browser.scene.grid,browser.camera.state());
+        return std::array<double,4>{(point.x-view.center.x)/view.spacing-view.phase_x,
+            (point.z-view.center.z)/view.spacing-view.phase_z,
+            view.spacing/browser.camera.state().distance,view.fine_opacity};
+    };
+    const auto same_grid=[&](const auto& before,const auto& after) {
+        check(std::abs(before[2]-after[2])<0.0001 && std::abs(before[3]-after[3])<0.0001,
+            "Directory boundary changes preserve apparent grid spacing and opacity");
+        for (int i:{0,1}) {
+            check(std::abs(std::remainder(before[i]-after[i],1.0))<0.0001,
+                "Directory boundary changes preserve major grid alignment");
+            check(std::abs(std::remainder((before[i]-after[i])*grid_refinement,1.0))<0.025,
+                "Directory boundary changes preserve minor grid alignment");
+        }
+    };
     const auto check_window=[&] {
         const auto parent=browser.hierarchy.node(browser.current_node()).parent;
         if (parent==no_node) return;
@@ -272,7 +288,9 @@ void continuous_deep_navigation(const fs::path& root) {
         const auto child=browser.hierarchy.child(browser.current_node(),index);
         check(child!=no_node,"Nested child exists before entry");
         const auto before=screen(browser.hierarchy.focus(child));
+        const auto before_grid=grid_sample(browser.hierarchy.focus(child));
         browser.act({ActionKind::Open,index});
+        same_grid(before_grid,grid_sample(browser.hierarchy.focus(browser.current_node())));
         same_screen(before,screen(browser.hierarchy.focus(browser.current_node())));
         check(browser.camera.moving(),"Deep directory entry remains animated across rebase boundaries");
         settle(browser);
@@ -281,6 +299,7 @@ void continuous_deep_navigation(const fs::path& root) {
     }
     for (std::size_t depth=paths.size()-1;depth>0;--depth) {
         const auto before=screen(browser.hierarchy.focus(browser.current_node()));
+        const auto before_grid=grid_sample(browser.hierarchy.focus(browser.current_node()));
         browser.act({ActionKind::Up});
         const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
         while (fs::path(browser.filesystem.path(browser.navigation.context().directory)).lexically_normal()!=paths[depth-1]) {
@@ -290,6 +309,7 @@ void continuous_deep_navigation(const fs::path& root) {
         const auto child=browser.hierarchy.child(browser.current_node(),object(browser,"next"));
         check(child!=no_node,"Previous CWD remains represented in its parent");
         same_screen(before,screen(browser.hierarchy.focus(child)));
+        same_grid(before_grid,grid_sample(browser.hierarchy.focus(child)));
         check(browser.camera.moving(),"Deep ascent remains animated, including after history eviction");
         const auto start=browser.camera.state().distance, target=browser.camera.settled_state().distance;
         check(start<target,"Ascent starts at child scale and targets parent scale");
@@ -300,6 +320,7 @@ void continuous_deep_navigation(const fs::path& root) {
     check(browser.history.entries().size()==64,"Long traversal keeps history bounded");
     const auto ascend_unseen=[&](const fs::path& expected,const char* child_name) {
         const auto before=screen(browser.hierarchy.focus(browser.current_node()));
+        const auto before_grid=grid_sample(browser.hierarchy.focus(browser.current_node()));
         browser.act({ActionKind::Up});
         const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
         while (fs::path(browser.filesystem.path(browser.navigation.context().directory)).lexically_normal()!=expected) {
@@ -309,12 +330,15 @@ void continuous_deep_navigation(const fs::path& root) {
         const auto child=browser.hierarchy.child(browser.current_node(),object(browser,child_name));
         check(child!=no_node,"Unseen parent retains the old CWD diorama");
         same_screen(before,screen(browser.hierarchy.focus(child)));
+        same_grid(before_grid,grid_sample(browser.hierarchy.focus(child)));
         check(browser.camera.moving(),"An unvisited parent zooms out rather than resetting the camera");
         settle(browser);
     };
     ascend_unseen(family,"start"); ascend_unseen(root,"deep-navigation");
+    const auto grid_before_history=browser.scene.grid;
     browser.act({ActionKind::Back}); settle(browser);
     browser.act({ActionKind::Forward}); settle(browser);
+    check(browser.scene.grid==grid_before_history,"History restores the matching persistent grid frame");
     check(browser.scene.context_name==root.filename().string(),"History remains usable after unseen-parent promotion");
 
     Browser interrupted(paths[2]); settle(interrupted);

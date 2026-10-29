@@ -49,8 +49,8 @@
 ## Tests and runtime
 
 - Debug: `cmake --build build -j2`, `ctest --test-dir build --output-on-failure`.
-- Release: same commands with `build-release`. Seven suites include the five
-  preserved suites plus `refinement-stress` and `surface-inscriptions`.
+- Release: same commands with `build-release`. Eight suites include the five
+  preserved suites plus `refinement-stress`, `surface-inscriptions` and `grid-refinement`.
 - New stress fixture: 14,719 entries, including 10,000 miscellaneous files, 2,000
   artifacts, forty 60-member sequences, 250 directories, and 64 nested levels.
   It tests cached preparation and bounded hierarchy/LOD without a real tree scan.
@@ -369,3 +369,37 @@ Sparse-fallback validation: Debug and Release builds passed all seven suites;
 `Initialize SDL2: x11 not available`. Manual X11 checks: confirm short directories
 and partial final pages fill from the front, full directories retain accepted
 spacing, and entering/returning preserves the established geometry and text.
+
+
+## Continuous background-grid refinement
+
+Replaced the fixed root-grid line buffer with a procedural, antialiased floor
+plane. A coarse lattice stays visible while its 256-way subdivisions fade in
+with logarithmic camera distance and smooth easing. The default three-directory
+scale reduction fully reveals the next level; zooming out reverses the fade.
+At a level boundary the fully visible minor grid becomes the major grid on the
+same coordinates. Subpixel lines and the distant patch edge fade to avoid aliasing.
+Camera motion updates uniforms rather than rebuilding scene buffers.
+
+A double-precision GridFrame holds the lattice origin/unit and is stored with
+cached worlds. Deep rebases, cached-parent returns, unseen-parent promotions and
+history preserve phase and apparent spacing. Powers of 256 normalize the frame
+for bounded precision during deep traversal. Unrelated path jumps start a fresh
+frame. Camera state now also carries the browsing floor height, interpolated
+alongside scale/distance and mapped between frames; selecting a tall object does
+not lift the background grid. Filesystem, analysis, layout and controls are unchanged.
+
+The CPU-only grid suite covers monotonic/reversible fades, three-layer completion,
+level boundaries, repeated descending/ascending coordinate maps and interrupted
+floor transitions. Existing forty-level browser tests also compare grid phase,
+opacity and apparent spacing across actual rebase, ascent and parent-promotion
+boundaries. There are now eight automated suites.
+
+Grid-refinement validation: Debug and Release builds passed all eight suites;
+`git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`; shader appearance is not visually verified.
+Manual X11 checks: descend/ascend through at least ten levels, reverse a zoom
+mid-transition, zoom with the wheel, focus a tall file, use Back/Forward, orbit
+to shallow pitch and resize. Confirm gradual fine-line fading, stable major-line
+alignment at rebase boundaries, a floor that stays beneath the scene, and no
+objectionable shimmer or distant-edge pop.

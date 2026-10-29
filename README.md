@@ -63,6 +63,14 @@ selection and group context through bounded history. After history eviction,
 the cached immediate parent can still be promoted for animated ascent.
 Unrelated path/history jumps retain controlled scene changes.
 
+The background grid now uses continuous camera-distance refinement rather than
+reappearing at browsing-frame resets. Each level subdivides by 256 (roughly three
+directory scales), fading fine lines in during approach and out during ascent or
+wheel zoom. Major lines remain. Antialiasing suppresses subpixel lines; the plane
+fades at its distant edge. Grid phase/scale are mapped across deep rebases, parent
+promotion and cached history. Only uniforms change as the camera moves; no grid
+geometry or directory layout is rebuilt. Visual fade quality needs X11 inspection.
+
 Invalid/inaccessible paths report status without terminating. Path entry supports
 absolute paths, paths relative to the current directory, and `~`/`~/`; no shell
 expansion is performed.
@@ -374,8 +382,10 @@ No runtime helper is installed automatically.
 
 ## Automated validation
 
-All seven suites run without a window or OpenGL context:
+All eight suites run without a window or OpenGL context:
 
+- Grid refinement: progressive/reversible fades, level alignment, floor-height
+  transitions, repeated frame mapping and deep browser boundary continuity.
 - Surface inscriptions: font-atlas construction, UTF-8-safe truncation, bounded
   text meshes, fixed face orientation, surface attachment, and rebase scaling.
 - Refinement stress: bounded large-directory preparation, stable pages/anchors,

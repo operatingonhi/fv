@@ -102,7 +102,7 @@ int main(int argc,char** argv) {
         require(ImGui_ImplOpenGL3_Init("#version 330 core"),"Initialize ImGui OpenGL backend");
         runtime.renderer=true;
         spatial::Browser browser(start);
-        spatial::Renderer renderer(browser.scene.boxes,browser.scene.grid_origin,browser.scene.labels);
+        spatial::Renderer renderer(browser.scene.boxes,browser.scene.grid,browser.scene.labels);
         spatial::OverlayState overlay_state;
         auto displayed_history=browser.history.current().state;
         bool running=true, smoke_checked=false, smoke_started=!smoke;
@@ -114,7 +114,7 @@ int main(int argc,char** argv) {
             const auto revision=browser.scene_revision;
             browser.act(action);
             if (browser.scene_revision!=revision)
-                renderer.set_scene(browser.scene.boxes,browser.scene.grid_origin,browser.scene.labels);
+                renderer.set_scene(browser.scene.boxes,browser.scene.grid,browser.scene.labels);
         };
         Uint64 previous=SDL_GetPerformanceCounter();
         unsigned frames=0;
@@ -214,7 +214,7 @@ int main(int argc,char** argv) {
             const auto revision=browser.scene_revision;
             browser.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
             if (browser.scene_revision!=revision)
-                renderer.set_scene(browser.scene.boxes,browser.scene.grid_origin,browser.scene.labels);
+                renderer.set_scene(browser.scene.boxes,browser.scene.grid,browser.scene.labels);
             if (displayed_history!=browser.history.current().state) { click_target.reset(); displayed_history=browser.history.current().state; }
             if (smoke && !smoke_started) {
                 if (!browser.loading()) {

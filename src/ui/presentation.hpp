@@ -2,6 +2,7 @@
 #include "layout/hierarchy.hpp"
 #include "graphics/camera.hpp"
 #include "graphics/scene.hpp"
+#include "graphics/grid.hpp"
 #include <unordered_map>
 #include <string_view>
 
@@ -15,7 +16,7 @@ struct ObjectAppearance { float brightness=1; bool selectable=true, force_detail
 using AppearanceMap=std::unordered_map<NodeId,std::vector<ObjectAppearance>>;
 struct Presentation {
     std::string context_name;
-    Vec3 grid_origin{};
+    GridFrame grid{};
     std::vector<SceneBox> boxes, targets;
     std::vector<SceneLabel> labels;
     std::vector<unsigned char> interactive,drawn;

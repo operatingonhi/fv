@@ -5,6 +5,7 @@ namespace spatial {
 namespace {
 CameraState in_frame(CameraState state,LocalTransform frame) {
     state.focus=frame.point(state.focus);
+    state.floor_height=state.floor_height*frame.scale+frame.translation.y;
     state.distance*=frame.scale; state.scale*=frame.scale;
     return state;
 }
@@ -54,6 +55,7 @@ Browser::Surroundings Browser::cached_parent(EntryId directory) const {
 void Browser::enter_rebased(NodeId child,EntryId directory,bool remember_parent) {
     const auto frame=hierarchy.node(child).transform;
     const auto incoming=in_frame(camera.state(),inverse(frame));
+    const auto next_grid=transform_grid(grid_,inverse(frame).translation,inverse(frame).scale);
     const auto path=world_path_ ? *world_path_/std::filesystem::path(filesystem.path(directory)).lexically_relative(filesystem.path(root_id)):
         std::filesystem::path(filesystem.path(directory));
     Filesystem next_filesystem(path.string());
@@ -66,6 +68,7 @@ void Browser::enter_rebased(NodeId child,EntryId directory,bool remember_parent)
     const ParentReturn back{history.current().state,directory,frame};
     if (remember_parent) save_view();
     stash_world(); world_=std::make_shared<World>();
+    grid_=next_grid;
     filesystem=std::move(next_filesystem); hierarchy=std::move(next_hierarchy);
     surroundings_=std::move(context); if (remember_parent) parent_return_=back;
     world_path_=path; navigation=Navigation{}; current_=0; parents_.clear();
@@ -116,7 +119,9 @@ void Browser::try_ascend() {
     const auto current_entries=filesystem.copy_subtree(0,next_filesystem,directory);
     hierarchy.copy_branch(0,next_hierarchy,child,current_entries);
     const auto incoming=in_frame(camera.state(),next_hierarchy.node(child).transform);
+    const auto next_grid=transform_grid(grid_,next_hierarchy.node(child).transform.translation,next_hierarchy.node(child).transform.scale);
     save_view(); stash_world(); world_=std::make_shared<World>();
+    grid_=next_grid;
     filesystem=std::move(next_filesystem); hierarchy=std::move(next_hierarchy);
     current_=0; parents_.clear(); navigation=Navigation{}; world_path_=path;
     navigation.restore_page(hierarchy.node(0).world.page);

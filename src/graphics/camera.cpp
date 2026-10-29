@@ -23,9 +23,9 @@ void Camera::transition(CameraState target, bool animate) {
     duration_=animate ? std::clamp(animation_duration,0.0f,1.0f):0.0f;
     if (duration_==0) current_=target;
 }
-void Camera::focus(Vec3 target, bool animate, float distance, float scale) {
+void Camera::focus(Vec3 target, bool animate, float distance, float scale,float floor_height) {
     CameraState next;
-    next.focus=target;
+    next.focus=target; next.floor_height=floor_height;
     next.scale=std::max(scale,0.000001f);
     next.distance=std::clamp(distance,min_distance*next.scale,max_distance*next.scale);
     transition(next,animate);
@@ -47,6 +47,7 @@ void Camera::update(float seconds) {
     current_.pitch=mix(start_.pitch,target_.pitch);
     current_.distance=mix(start_.distance,target_.distance);
     current_.scale=mix(start_.scale,target_.scale);
+    current_.floor_height=mix(start_.floor_height,target_.floor_height);
 }
 Vec3 Camera::eye() const {
     const float horizontal=current_.distance*std::cos(current_.pitch);

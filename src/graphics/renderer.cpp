@@ -26,7 +26,7 @@ GLuint shader(GLenum type,const char* source) {
     return id;
 }
 }
-Renderer::Renderer(std::span<const SceneBox> boxes,Vec3 grid_origin,std::span<const SceneLabel> labels) {
+Renderer::Renderer(std::span<const SceneBox> boxes,GridFrame grid,std::span<const SceneLabel> labels) {
     GLuint vertex=0, fragment=0;
     try {
         vertex=shader(GL_VERTEX_SHADER,R"(#version 330 core
@@ -57,6 +57,54 @@ void main() { pixel=vec4(tint,1.0); }
         matrix_location_=glGetUniformLocation(program_,"view_projection");
         glGenVertexArrays(1,&vao_);
         glGenBuffers(1,&buffer_);
+        vertex=shader(GL_VERTEX_SHADER,R"(#version 330 core
+uniform mat4 view_projection;
+uniform vec3 center;
+uniform float extent,spacing;
+uniform vec2 phase;
+out vec2 coord,patch;
+void main() {
+    const vec2 corners[6]=vec2[](vec2(-1,-1),vec2(-1,1),vec2(1,1),
+        vec2(-1,-1),vec2(1,1),vec2(1,-1));
+    patch=corners[gl_VertexID];
+    vec2 offset=patch*extent;
+    coord=offset/spacing-phase;
+    gl_Position=view_projection*vec4(center+vec3(offset.x,0,offset.y),1);
+}
+)");
+        fragment=shader(GL_FRAGMENT_SHADER,R"(#version 330 core
+in vec2 coord,patch;
+uniform float fine_opacity;
+out vec4 pixel;
+float lines(vec2 uv) {
+    vec2 width=fwidth(uv);
+    vec2 line_distance=abs(fract(uv-0.5)-0.5)/max(width,vec2(0.000001));
+    // Pixel-width strokes with independent antialiasing and subpixel rejection
+    // for each direction, including shallow orbit angles near the horizon.
+    vec2 coverage=(1.0-smoothstep(vec2(0.0),vec2(1.0),line_distance))*
+        (1.0-smoothstep(vec2(0.25),vec2(0.75),width));
+    return max(coverage.x,coverage.y);
+}
+void main() {
+    // 256 matches grid_refinement: approximately three directory scales.
+    float alpha=max(lines(coord),fine_opacity*lines(coord*256.0));
+    alpha*=1.0-smoothstep(0.7,1.0,length(patch));
+    if (alpha<0.001) discard;
+    pixel=vec4(0.09,0.18,0.20,alpha);
+}
+)");
+        grid_program_=glCreateProgram();
+        glAttachShader(grid_program_,vertex); glAttachShader(grid_program_,fragment);
+        glLinkProgram(grid_program_); glGetProgramiv(grid_program_,GL_LINK_STATUS,&ok);
+        if (!ok) throw std::runtime_error("Grid shader linking failed");
+        glDeleteShader(vertex); vertex=0; glDeleteShader(fragment); fragment=0;
+        grid_matrix_=glGetUniformLocation(grid_program_,"view_projection");
+        grid_center_=glGetUniformLocation(grid_program_,"center");
+        grid_extent_=glGetUniformLocation(grid_program_,"extent");
+        grid_spacing_=glGetUniformLocation(grid_program_,"spacing");
+        grid_phase_=glGetUniformLocation(grid_program_,"phase");
+        grid_opacity_=glGetUniformLocation(grid_program_,"fine_opacity");
+        glGenVertexArrays(1,&grid_vao_);
         vertex=shader(GL_VERTEX_SHADER,R"(#version 330 core
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -100,7 +148,7 @@ void main() {
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,width,height,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
         glGenerateMipmap(GL_TEXTURE_2D);
-        set_scene(boxes,grid_origin,labels);
+        set_scene(boxes,grid,labels);
     } catch (...) {
         if (vertex) glDeleteShader(vertex);
         if (fragment) glDeleteShader(fragment);
@@ -108,17 +156,13 @@ void main() {
         throw;
     }
 }
-void Renderer::set_scene(std::span<const SceneBox> boxes,Vec3 grid_origin,std::span<const SceneLabel> labels) {
+void Renderer::set_scene(std::span<const SceneBox> boxes,GridFrame grid,std::span<const SceneLabel> labels) {
+    grid_=grid;
     std::vector<Vertex> vertices;
-    vertices.reserve(116+boxes.size()*24);
+    vertices.reserve(boxes.size()*24);
     const auto line=[&](Vec3 a,Vec3 b,Vec3 color) {
         vertices.push_back({a,color}); vertices.push_back({b,color});
     };
-    for (int i=-14;i<=14;++i) {
-        const float f=static_cast<float>(i);
-        line(grid_origin+Vec3{f,-0.02f,-14},grid_origin+Vec3{f,-0.02f,14},{0.09f,0.18f,0.20f});
-        line(grid_origin+Vec3{-14,-0.02f,f},grid_origin+Vec3{14,-0.02f,f},{0.09f,0.18f,0.20f});
-    }
     constexpr int edges[][2]={{0,1},{1,3},{3,2},{2,0},{4,5},{5,7},
                               {7,6},{6,4},{0,4},{1,5},{2,6},{3,7}};
     for (const auto& box:boxes) {
@@ -147,6 +191,8 @@ void Renderer::set_scene(std::span<const SceneBox> boxes,Vec3 grid_origin,std::s
     glBindVertexArray(0);
 }
 void Renderer::release() {
+    if (grid_vao_) glDeleteVertexArrays(1,&grid_vao_);
+    if (grid_program_) glDeleteProgram(grid_program_);
     if (text_texture_) glDeleteTextures(1,&text_texture_);
     if (text_buffer_) glDeleteBuffers(1,&text_buffer_);
     if (text_vao_) glDeleteVertexArrays(1,&text_vao_);
@@ -162,8 +208,19 @@ void Renderer::draw(const Camera& camera,int width,int height,int left) const {
     glClearColor(0.018f,0.027f,0.040f,1);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
-    glUseProgram(program_);
     const auto matrix=camera.view_projection(static_cast<float>(width)/static_cast<float>(height));
+    const auto grid=grid_view(grid_,camera.state());
+    glUseProgram(grid_program_);
+    glUniformMatrix4fv(grid_matrix_,1,GL_FALSE,matrix.data());
+    glUniform3f(grid_center_,grid.center.x,grid.center.y,grid.center.z);
+    glUniform1f(grid_extent_,grid.extent); glUniform1f(grid_spacing_,grid.spacing);
+    glUniform2f(grid_phase_,grid.phase_x,grid.phase_z);
+    glUniform1f(grid_opacity_,grid.fine_opacity);
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    glBindVertexArray(grid_vao_); glDrawArrays(GL_TRIANGLES,0,6);
+    glDepthMask(GL_TRUE); glDisable(GL_BLEND);
+    glUseProgram(program_);
     glUniformMatrix4fv(matrix_location_,1,GL_FALSE,matrix.data());
     glBindVertexArray(vao_);
     glDrawArrays(GL_LINES,0,vertex_count_);

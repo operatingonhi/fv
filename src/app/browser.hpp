@@ -60,6 +60,7 @@ private:
     };
     struct ParentReturn { std::size_t state; EntryId directory; LocalTransform frame; };
     struct World {
+        GridFrame grid;
         std::optional<Filesystem> filesystem;
         std::optional<Hierarchy> hierarchy;
         std::optional<Surroundings> surroundings;
@@ -116,6 +117,7 @@ private:
     std::vector<LoadResult> deferred_;
     std::map<EntryId,bool> pending_;
     bool apply_deferred_=false;
+    GridFrame grid_;
     NodeId current_=0;
     std::vector<NodeId> parents_;
     std::vector<unsigned char> levels_,scratch_levels_;

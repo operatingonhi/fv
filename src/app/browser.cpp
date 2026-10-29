@@ -71,6 +71,7 @@ void Browser::refresh_scene() {
     detail_levels(hierarchy,camera,levels_);
     last_lod_camera_=camera.state(); ++lod_evaluations;
     scene=present(hierarchy,current_,navigation.selected(),levels_,appearances_,presentation_config);
+    scene.grid=grid_;
     if (current_==0 && surroundings_) scene.boxes.insert(scene.boxes.begin(),surroundings_->boxes.begin(),surroundings_->boxes.end());
     const auto& directory=filesystem.entry(navigation.context().directory);
     // Before metadata arrives, '.' and '..' are path syntax rather than names.
@@ -94,7 +95,7 @@ void Browser::sync_view() {
 }
 void Browser::focus_overview() {
     const auto scale=hierarchy.node(current_).transform.scale;
-    camera.focus(hierarchy.focus(current_),animations,24*scale,scale);
+    camera.focus(hierarchy.focus(current_),animations,24*scale,scale,hierarchy.node(current_).transform.translation.y);
 }
 void Browser::update(float seconds) {
     for (const auto& error:launcher_.poll()) notice=error;
@@ -199,7 +200,7 @@ void Browser::select(std::size_t index,bool focus) {
     navigation.select_item(index,layout.objects[index].item);
     if (focus) {
         const auto scale=hierarchy.node(current_).transform.scale;
-        camera.focus(layout.objects[index].center,animations,13*scale,scale);
+        camera.focus(layout.objects[index].center,animations,13*scale,scale,hierarchy.node(current_).transform.translation.y);
         const auto& item=layout.objects[index].item;
         if (item.group==GroupKind::None && item.category==Category::Directory) request_directory(item.members.front(),false);
     }

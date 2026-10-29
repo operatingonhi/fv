@@ -21,6 +21,7 @@ void Browser::record_view() {
     }
 }
 void Browser::stash_world() {
+    world_->grid=grid_;
     filesystem.clear_loading();
     world_->filesystem=std::move(filesystem); world_->hierarchy=std::move(hierarchy);
     if (surroundings_) { surroundings_->pending.clear(); surroundings_->filesystem.clear_loading(); }
@@ -37,7 +38,7 @@ void Browser::restore_view(std::size_t state) {
     const auto view=found->second;
     const bool same_world=view.world==world_;
     if (!same_world) {
-        stash_world(); world_=view.world;
+        stash_world(); world_=view.world; grid_=world_->grid;
         filesystem=std::move(*world_->filesystem); hierarchy=std::move(*world_->hierarchy);
         surroundings_=std::move(world_->surroundings); world_->surroundings.reset();
         parent_return_=world_->parent_return; world_path_=world_->path;
@@ -150,7 +151,7 @@ void Browser::open_location(const std::filesystem::path& path) {
             if (enter_existing(node)) return;
         }
     }
-    save_view(); stash_world(); world_=std::make_shared<World>();
+    save_view(); stash_world(); world_=std::make_shared<World>(); grid_={};
     filesystem=Filesystem(path.string()); navigation=Navigation{}; hierarchy=Hierarchy{};
     current_=0; parents_.clear(); query_.text.clear();
     world_path_=path;
