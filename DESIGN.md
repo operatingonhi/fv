@@ -946,11 +946,34 @@ The implementation need not literally use a traditional scene graph if another a
 
 Text must remain highly legible.
 
-The current directory's name and every object name on its current visible page
-must remain displayed, independently of zoom, salience, selection, search/filter
-dimming, and nested detail settings. Move colliding current-page labels
-instead of silently suppressing them. Full long names remain available in the
-sidebar/inspector when a scene label must be abbreviated.
+The current directory carries a full-scale name on its own backdrop, using the
+same proportions as child-directory titles; it is the largest text in the scene.
+A fixed viewport heading also remains available. Every object on its current
+page carries a name inscribed directly on an existing geometric face. Text-file
+names sit above the horizontal divider on the document slab, and other types use
+their own panels, bands, beams or top faces. Do not add a separate rectangle or
+backing card for file names. File, directory and group lettering uses the same font size and available text
+width relative to each shape. Semantic faces span the same width, so names have
+consistent capacity before truncation.
+Directory names use a backdrop/title bar with 50 percent more height than the
+original, with proportionally enlarged lettering. Compound
+groups use a shared title fascia. Text follows world perspective, zoom, orbit,
+and depth testing rather than turning to face the camera or floating above the
+object. Faces may become small, edge-on, occluded, or leave the viewport.
+
+Current-page inscriptions are generated independently of salience, selection,
+search/filter dimming, and nested detail settings. Names are truncated with an
+ellipsis to fit their surface; full names remain in the sidebar and metadata
+inspector. Do not move names into screen-space rows or add connector lines to
+avoid collisions. Visible shapes have equal widths. Spread the page grid across
+the directory floor with small, balanced edge margins, rather than fixing gaps
+to one eighth of object width. Keep object and lettering sizes independent of
+slot spacing. Partially populated pages fill from the front in center-first
+column order; full pages retain their established floor-spanning grid. Keep
+known anchors pinned during progressive loading. Natural, occupancy-dependent
+dispersion is deferred until repacking can preserve navigation continuity; do
+not approximate it by leaving holes in a grid intended for a full page. Salience still influences
+ordering and brightness; semantic silhouettes remain.
 
 Scene names are restricted to the current directory and its immediate visible
 entries. Files, directories, groups, and summaries inside child or sibling

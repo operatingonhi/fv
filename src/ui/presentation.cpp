@@ -30,6 +30,10 @@ Vec3 semantic_color(Category category) {
     }
     return {1,1,1};
 }
+SceneLabel backdrop_inscription(LocalTransform transform,std::string name,Vec3 color,bool required) {
+    return {transform.point({0,1.8f,-10.394f}),color,std::move(name),true,false,
+        14.8f*transform.scale,required,2.175f*transform.scale};
+}
 namespace {
 void file_geometry(std::vector<SceneBox>& boxes,FileShape shape,Vec3 center,Vec3 size,Vec3 color) {
     const float ground=center.y-size.y/2;
@@ -39,37 +43,37 @@ void file_geometry(std::vector<SceneBox>& boxes,FileShape shape,Vec3 center,Vec3
     };
     switch (shape) {
     case FileShape::Document:
-        box({0,0,0},{0.65f,1,0.16f});
-        box({0,0.22f,0.09f},{0.48f,0.035f,0.02f});
+        box({0,0,0},{0.94f,1,0.16f});
+        box({0,0.16f,0.09f},{0.82f,0.035f,0.02f});
         break;
     case FileShape::CodeSlab:
-        box({0,0,0},{0.8f,0.85f,0.18f});
-        box({-0.28f,0,0.12f},{0.06f,0.65f,0.12f});
+        box({0,0,0},{0.94f,0.85f,0.18f});
+        box({-0.41f,-0.1f,0.12f},{0.04f,0.55f,0.12f});
         break;
     case FileShape::ExecutableFrame:
-        box({-0.3f,0,0},{0.2f,1,0.6f});
-        box({0.3f,0,0},{0.2f,1,0.6f});
-        box({0,0.35f,0},{0.6f,0.25f,0.6f});
+        box({-0.37f,0,0},{0.2f,1,0.6f});
+        box({0.37f,0,0},{0.2f,1,0.6f});
+        box({0,0.3f,0},{0.94f,0.3f,0.6f});
         break;
     case FileShape::ImagePanel:
-        box({0,0,0},{1,0.6f,0.12f});
+        box({0,0,0},{0.94f,0.6f,0.12f});
         box({0,-0.32f,0},{0.45f,0.08f,0.45f});
         break;
     case FileShape::MediaPanels:
-        box({-0.15f,0,-0.12f},{0.65f,0.75f,0.12f});
-        box({0.15f,-0.12f,0.12f},{0.65f,0.75f,0.12f});
+        box({-0.04f,0,-0.12f},{0.86f,0.75f,0.12f});
+        box({0,-0.12f,0.12f},{0.94f,0.75f,0.12f});
         break;
     case FileShape::ArchiveStack:
-        for (int n=0;n<3;++n) box({0,-0.32f+n*0.32f,0},{0.85f,0.23f,0.8f});
+        for (int n=0;n<3;++n) box({0,-0.32f+n*0.32f,0},{0.94f,0.23f,0.8f});
         break;
     case FileShape::Linked:
-        box({-0.17f,-0.05f,-0.1f},{0.6f,0.45f,0.35f});
-        box({0.17f,0.05f,0.1f},{0.6f,0.45f,0.35f});
+        box({-0.04f,-0.05f,-0.1f},{0.86f,0.45f,0.35f});
+        box({0,0.05f,0.1f},{0.94f,0.45f,0.35f});
         break;
     case FileShape::LowTile:
-        boxes.push_back({{center.x,ground+size.y*0.08f,center.z},{size.x,size.y*0.16f,size.z*0.8f},color});
+        boxes.push_back({{center.x,ground+size.y*0.08f,center.z},{size.x*0.94f,size.y*0.16f,size.z*0.8f},color});
         break;
-    default: box({0,0,0},{0.8f,0.85f,0.75f}); break;
+    default: box({0,0,0},{0.94f,0.85f,0.75f}); break;
     }
 }
 void enclosure(std::vector<SceneBox>& boxes,LocalTransform transform,GroupKind group,Vec3 color) {
@@ -78,7 +82,7 @@ void enclosure(std::vector<SceneBox>& boxes,LocalTransform transform,GroupKind g
     };
     box(diorama_focus+Vec3{0,-0.05f,0},{16,0.1f,16});
     if (group==GroupKind::None) {
-        box({0,1.2f,-10.45f},{16,2.4f,0.1f});
+        box({0,1.8f,-10.45f},{16,3.6f,0.1f});
     } else if (group==GroupKind::Series) {
         // A shared floor, roof frame and supports join the actual member modules.
         // Opening the group zooms into these same units; it never scatters them.
@@ -86,6 +90,8 @@ void enclosure(std::vector<SceneBox>& boxes,LocalTransform transform,GroupKind g
         box({-7.8f,0.8f,-10.3f},{0.08f,1.6f,0.08f});
         box({7.8f,0.8f,-10.3f},{0.08f,1.6f,0.08f});
     }
+    if (group!=GroupKind::None)
+        box({0,1.8f,-10.45f},{16,3.6f,0.1f}); // Compound title fascia.
 }
 }
 void detail_levels(const Hierarchy& hierarchy,const Camera& camera,std::vector<unsigned char>& result,std::span<const unsigned char> previous) {
@@ -140,7 +146,7 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
                     result.boxes.push_back({transform.point(diorama_focus+Vec3{0,0.25f,0}),Vec3{0.7f,0.5f,0.7f}*transform.scale,color});
                 if (child!=no_node && (id==current || on_path || (depth<config.nested_depth && (near_context || levels[id]>0 || depth<2))))
                     self(self,child,depth+1);
-            } else if (levels[id]==0 && !active && !style.force_detail)
+            } else if (id!=current && levels[id]==0 && !active && !style.force_detail)
                 result.boxes.push_back({object.center,object.size*0.65f,color});
             else file_geometry(result.boxes,file_shape(object.item.category),object.center,object.size,color);
             if (active)
@@ -150,8 +156,29 @@ Presentation present(const Hierarchy& hierarchy,NodeId current,std::size_t selec
             if (id!=current) continue;
             std::string label=display_name(object.item.label)+style.contents_status;
             if (object.item.group!=GroupKind::None) label+=" ("+std::to_string(object.item.members.size())+")";
-            result.labels.push_back({object.center+Vec3{0,object.size.y/2+0.2f*node.transform.scale,0},
-                active ? selection_color:color,std::move(label),true,active,object.size.x,id==current});
+            const auto text_color=active ? selection_color:color;
+            if (container) {
+                const auto transform=compose(node.transform,contained_transform(node.local.objects[i]));
+                result.labels.push_back(backdrop_inscription(transform,std::move(label),text_color,true));
+                continue;
+            }
+            Vec3 offset{0,0.22f,0.376f},up{0,1,0};
+            switch (file_shape(object.item.category)) {
+            case FileShape::Document: offset={0,0.34f,0.081f}; break;
+            case FileShape::CodeSlab: offset={0,0.3f,0.091f}; break;
+            case FileShape::ExecutableFrame: offset={0,0.3f,0.301f}; break;
+            case FileShape::ImagePanel: offset={0,0.1f,0.061f}; break;
+            case FileShape::MediaPanels: offset={0,0.1f,0.181f}; break;
+            case FileShape::ArchiveStack: offset={0,0.32f,0.401f}; break;
+            case FileShape::Linked: offset={0,0.05f,0.276f}; break;
+            case FileShape::LowTile: offset={0,-0.339f,0}; up={0,0,-1}; break;
+            default: break;
+            }
+            const Vec3 face=object.center+Vec3{offset.x*object.size.x,offset.y*object.size.y,offset.z*object.size.z};
+            // Match the title metrics of a directory occupying this same slot.
+            const float scale=object.size.x*0.94f/16;
+            result.labels.push_back({face,text_color,std::move(label),true,active,
+                14.8f*scale,true,2.175f*scale,up});
         }
     };
     visit(visit,visible_root,0);

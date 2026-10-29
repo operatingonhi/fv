@@ -227,7 +227,7 @@ file be discoverable through a prioritized summary without moving known objects.
 
 LOD uses the existing apparent world scale with separate enter/leave thresholds
 (.0022/.0018 for medium, .020/.016 for full detail) to avoid flickering near a
-boundary. Labels retain projected-size and overlap checks. Camera changes do not
+boundary. Current-page inscriptions stay attached to their surfaces. Camera changes do not
 rerun analysis or layout; salience does not cause continual rearrangement.
 Metadata updates retain existing anchors and pages, and navigation continues
 through the same nested world. No visual redesign or camera control changes were
@@ -241,16 +241,30 @@ Page Up/Down retain their bounded behavior. Search and history use the same page
 capacity. Stable preview anchors survive page round trips. Summary previews do
 not recursively replicate all omitted entries before activation.
 
-Distant standalone files use a single simplified box; medium/near views retain
+Distant nested standalone files use a single simplified box; medium/near views retain
 semantic shapes. Names outside the current browsing level are never generated. Nested
 traversal is bounded, while the active ancestor chain remains visible. Strong
 sequences keep their roof/support compound; weaker temporal/artifact/summary
 groups share a restrained base. Numeric ordering, member identity, and bounded
 pagination remain unchanged.
 
-The spatial viewport always names the current directory and every object on its
-current page. Current-page labels bypass LOD/density/collision suppression;
-collisions move labels to nearby rows with connecting lines. Files, directories,
+The current directory has a full-scale title on its own backdrop, the largest
+text in the scene, plus a fixed viewport heading. Every current-page object
+carries a perspective-correct inscription directly on an existing face: text-file
+names sit above the slab divider, and other files use their panels, bands, beams
+or tile tops. No separate name rectangle or backing card is drawn. File, directory and group names use matching font-to-width proportions and
+matching text capacity; visible shapes have equal widths and spread across the
+directory floor with small, balanced edge margins. Object and font sizes stay
+independent of slot spacing. Partial pages fill from the front, preserving
+known anchors as more entries load. Natural dispersion is deferred pending a
+layout transition that can safely repack existing nested objects. Directory backdrops retain their increased height.
+Groups use a shared fascia. A high-resolution atlas of ImGui's embedded scalable
+font replaces the small default bake, with mipmaps for minified lettering.
+Names scale, tilt and occlude with the scene; they can become too small or edge-on
+to read. Long names truncate with `...` to fit the face; the sidebar and inspector
+retain full names. File faces, beams and bands are widened for consistent names.
+Current-page inscriptions bypass LOD/density suppression and retain filter dimming.
+Files, directories,
 groups, and summaries inside child or sibling directories stay unnamed even at
 full detail or with search highlighting. Enter a directory to reveal its own
 current-page entry names. The current-directory heading
@@ -267,7 +281,7 @@ The popup shows the latest scene-preparation CPU time and box/label counts;
 this is not GPU/frame timing. Idle frames skip LOD evaluation and geometry
 rebuilding. `refinement-tests` prints synthetic preparation timing and counts.
 Control bytes in filenames are escaped in object rows/labels; the inspector
-retains the full filename/path. Long selected scene labels fit the viewport.
+retains the full filename/path. Scene inscriptions fit their object surfaces.
 
 ## Shapes and controls
 
@@ -281,7 +295,7 @@ The terminal-inspired palette is retained, with restrained shape distinctions:
 | Media | Offset panels | Violet |
 | Executable / binary | Open frame / compact prism | Green / subdued green |
 | Archive | Stacked bands | Red |
-| Generated | Low tile | Subdued gray |
+| Generated | Low tile with inscription on top | Subdued gray |
 | Symlink | Linked offset forms | Cyan |
 | Special / unknown | Compact marker | Muted brown |
 
@@ -360,8 +374,12 @@ No runtime helper is installed automatically.
 
 ## Automated validation
 
-All five suites run without a window or OpenGL context:
+All seven suites run without a window or OpenGL context:
 
+- Surface inscriptions: font-atlas construction, UTF-8-safe truncation, bounded
+  text meshes, fixed face orientation, surface attachment, and rebase scaling.
+- Refinement stress: bounded large-directory preparation, stable pages/anchors,
+  nested disclosure, current-level naming and continuous navigation boundaries.
 - Analysis/disclosure: continuous recency, balanced ranking, generated classification
   and negative cases, numeric/padding/version/size false positives, conservative
   related grouping, artifact coverage, ranked summaries, stable positions and LOD hysteresis.

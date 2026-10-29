@@ -11,6 +11,70 @@ using namespace spatial;
 namespace {
 void check(bool value,const char* message) { if (!value) throw std::runtime_error(message); }
 bool same(Vec3 a,Vec3 b) { return a.x==b.x && a.y==b.y && a.z==b.z; }
+void floor_coverage() {
+    std::vector<Item> items;
+    for (EntryId i=1;i<=20;++i) items.push_back({"directory",Category::Directory,GroupKind::None,0.5f,{i}});
+    const auto verify=[&](const LayoutConfig& config) {
+        const auto layout=arrange(items,0,{},config);
+        float left=100,right=-100,back=100,front=-100;
+        const float accepted_width=2.8f*(8.0f/9.0f)/0.94f;
+        for (const auto& object:layout.objects) {
+            check(std::abs(object.size.x-accepted_width)<0.0001f && object.size.x==object.size.z,
+                "Spreading slots preserves accepted object dimensions");
+            left=std::min(left,object.center.x-object.size.x/2);
+            right=std::max(right,object.center.x+object.size.x/2);
+            back=std::min(back,object.center.z-object.size.z/2);
+            front=std::max(front,object.center.z+object.size.z/2);
+        }
+        check(std::abs(left-(-8+config.edge_margin))<0.0001f &&
+            std::abs(right-(8-config.edge_margin))<0.0001f,
+            "Columns fill the directory evenly to the side margins");
+        check(std::abs(back-(-10.5f+config.edge_margin))<0.0001f &&
+            std::abs(front-(5.5f-config.edge_margin))<0.0001f,
+            "Rows fill the directory evenly to the front and back margins");
+
+    };
+    verify({});
+    LayoutConfig wider_margin; wider_margin.edge_margin=0.8f; verify(wider_margin);
+    LayoutConfig even_columns; even_columns.columns=4; even_columns.page_size=12; verify(even_columns);
+    for (std::size_t count=1;count<=20;++count) {
+        const auto sparse=arrange(std::span<const Item>(items).first(count));
+        for (std::size_t i=0;i<sparse.objects.size();++i) {
+            const auto& object=sparse.objects[i];
+            check(object.center.z<4 && object.center.z>-9,"Sparse pages stay on the floor");
+            for (std::size_t j=0;j<i;++j) {
+                const auto& other=sparse.objects[j];
+                check(std::abs(object.center.x-other.center.x)>=object.size.x ||
+                    std::abs(object.center.z-other.center.z)>=object.size.z,"Sparse objects never overlap");
+            }
+        }
+        const auto full=arrange(items);
+        for (std::size_t i=0;i<sparse.objects.size();++i)
+            check(same(sparse.objects[i].center,full.objects[i].center),
+                "Partial directories fill the front-first grid without reserving empty interior slots");
+    }
+    std::vector<Item> preview(items.begin(),items.begin()+3);
+    Hierarchy hierarchy; hierarchy.initialize({{0,preview}},preview);
+    const auto anchors=hierarchy.node(0).local.objects;
+    hierarchy.upsert_directory({0,items},items);
+    const auto& grown=hierarchy.node(0).local.objects;
+    for (const auto& old:anchors) {
+        const auto found=std::find_if(grown.begin(),grown.end(),[&](const auto& object) { return object.item.members==old.item.members; });
+        check(found!=grown.end() && same(found->center,old.center),"Front-first preview anchors survive partial-to-full loading");
+    }
+    for (std::size_t i=0;i<grown.size();++i) for (std::size_t j=0;j<i;++j)
+        check(std::abs(grown[i].center.x-grown[j].center.x)>=grown[i].size.x ||
+            std::abs(grown[i].center.z-grown[j].center.z)>=grown[i].size.z,
+            "Growing a preview fills unused slots without overlaps");
+    for (EntryId i=21;i<=41;++i) items.push_back({"directory",Category::Directory,GroupKind::None,0.5f,{i}});
+    const auto last=arrange(items,2);
+    check(last.objects.size()==4 && last.objects.back().item.group==GroupKind::Summary,
+        "The final partial page retains its remainder summary");
+    const auto [front,back]=std::minmax_element(last.objects.begin(),last.objects.end(),
+        [](const auto& a,const auto& b) { return a.center.z<b.center.z; });
+    check(back->center.z==front->center.z && front->center.z>0,"A short final page stays in the front row");
+
+}
 void paging() {
     std::vector<Item> items;
     for (EntryId i=1;i<=1000;++i) items.push_back({"entry "+std::to_string(i),Category::Text,GroupKind::None,0.5f,{i}});
@@ -286,6 +350,6 @@ void camera_boundaries() {
 }
 }
 int main() {
-    try { paging(); stable_loading(); stress(); display_and_lod(); immediate_contents(); parent_frame(); cached_branch_copy(); camera_boundaries(); }
+    try { floor_coverage(); paging(); stable_loading(); stress(); display_and_lod(); immediate_contents(); parent_frame(); cached_branch_copy(); camera_boundaries(); }
     catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

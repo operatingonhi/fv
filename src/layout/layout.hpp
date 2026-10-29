@@ -4,7 +4,14 @@
 #include <span>
 
 namespace spatial {
-struct LayoutConfig { std::size_t page_size=20, columns=5; float spacing=3.0f; bool rank_remainder=true; };
+inline constexpr Vec3 diorama_focus{0,0,-2.5f};
+inline constexpr Vec3 diorama_size{16,2.5f,16};
+struct LayoutConfig {
+    std::size_t page_size=20, columns=5;
+    float object_width=2.8f*(8.0f/9.0f)/0.94f; // Preserve the accepted object size.
+    bool rank_remainder=true;
+    float edge_margin=0.5f;
+};
 struct DisclosureConfig {
     float medium_enter=0.0022f, medium_leave=0.0018f;
     float detail_enter=0.020f, detail_leave=0.016f;

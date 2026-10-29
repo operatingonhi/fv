@@ -1,9 +1,7 @@
 #include "ui/overlay.hpp"
 #include "app/browser.hpp"
-#include "graphics/picking.hpp"
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
-#include <array>
 #include <algorithm>
 #include <ctime>
 
@@ -194,77 +192,13 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     state.cancel_edits=false;
     return action;
 }
-void scene_labels(const Presentation& scene,const Camera& camera,float left,float width,float height) {
+void scene_heading(const Presentation& scene,float left,float width,float height) {
     if (width<=0 || height<=0) return;
     auto* draw=ImGui::GetBackgroundDrawList();
     draw->PushClipRect({left,0},{left+width,height});
-    const auto matrix=camera.view_projection(width/height);
-    std::array<ImVec4,64> occupied{};
-    std::size_t count=0;
     const std::string heading=scene.context_name.empty() ? "":"Directory: "+scene.context_name;
     const auto heading_size=ImGui::CalcTextSize(heading.c_str(),nullptr,false,std::max(1.0f,width-24));
-    if (!heading.empty()) occupied[count++]={left+8,8,left+width-8,12+heading_size.y};
-    const auto overlaps=[&](ImVec4 rect) {
-        for (std::size_t i=0;i<count;++i)
-            if (rect.x<occupied[i].z && rect.z>occupied[i].x && rect.y<occupied[i].w && rect.w>occupied[i].y) return true;
-        return false;
-    };
-    // Collisions move current-page names to a nearby free row instead of
-    // suppressing them. Nested geometry does not supply labels.
-    for (bool required:{true,false}) for (bool selected:{true,false}) for (const auto& label:scene.labels) {
-        if (!label.visible || label.required!=required || label.selected!=selected) continue;
-        const auto point=project(label.anchor,matrix,width,height);
-        if (!point) continue;
-        const auto edge=project(label.anchor+Vec3{label.extent,0,0},matrix,width,height);
-        if (!required && !selected && (!edge || std::abs(edge->x-point->x)<12.0f)) continue;
-        // Long selected names stay visible inside the spatial viewport. The
-        // sidebar inspector retains the complete filename and path.
-        const char* text=label.text.c_str();
-        std::string shortened;
-        auto size=ImGui::CalcTextSize(text);
-        const bool mandatory=required || selected;
-        const float text_width=required && !selected ? std::min(200.0f,width-12):width-12;
-        if (mandatory && size.x>text_width) {
-            shortened=label.text;
-            const auto suffix_width=ImGui::CalcTextSize("...").x;
-            while (!shortened.empty() && ImGui::CalcTextSize(shortened.c_str()).x+suffix_width>text_width) {
-                auto end=shortened.size()-1;
-                while (end>0 && (static_cast<unsigned char>(shortened[end])&0xc0)==0x80) --end;
-                shortened.resize(end);
-            }
-            shortened+="..."; text=shortened.c_str(); size=ImGui::CalcTextSize(text);
-        }
-        ImVec2 pos{left+point->x-size.x/2,point->y-size.y};
-        if (mandatory) {
-            pos.x=std::clamp(pos.x,left+3,std::max(left+3,left+width-size.x-3));
-            pos.y=std::clamp(pos.y,2.0f,std::max(2.0f,height-size.y-2));
-        }
-        const auto rectangle=[&](ImVec2 p) { return ImVec4{p.x-3,p.y-2,p.x+size.x+3,p.y+size.y+2}; };
-        auto rect=rectangle(pos);
-        if (rect.x<left || rect.z>left+width || rect.y<0 || rect.w>height) continue;
-        const auto original=pos;
-        if (required && overlaps(rect)) {
-            const float step=size.y+5;
-            for (int offset=1;offset<=static_cast<int>(height/step)+1;++offset) {
-                bool found=false;
-                for (float direction:{-1.0f,1.0f}) {
-                    const ImVec2 candidate{original.x,original.y+direction*offset*step};
-                    const auto candidate_rect=rectangle(candidate);
-                    if (candidate_rect.y<0 || candidate_rect.w>height || overlaps(candidate_rect)) continue;
-                    pos=candidate; rect=candidate_rect; found=true; break;
-                }
-                if (found) break;
-            }
-        }
-        if (!required && overlaps(rect)) continue;
-        if (required && pos.y!=original.y)
-            draw->AddLine({left+point->x,point->y},{pos.x+size.x/2,pos.y+size.y},IM_COL32(100,130,140,150));
-        if (count<occupied.size()) occupied[count++]=rect;
-        draw->AddRectFilled({rect.x,rect.y},{rect.z,rect.w},IM_COL32(4,7,10,220));
-        draw->AddText(pos,ImGui::ColorConvertFloat4ToU32({label.color.x,label.color.y,label.color.z,1}),text);
-    }
-    // Draw the heading last, independently of projection or object-label
-    // placement, so even a crowded root view cannot paint over its name.
+    // The current-directory heading remains a conventional viewport heading.
     if (!heading.empty()) {
         draw->AddRectFilled({left+8,8},{left+width-8,12+heading_size.y},IM_COL32(4,7,10,255));
         draw->AddText(ImGui::GetFont(),ImGui::GetFontSize(),{left+12,10},IM_COL32(150,205,245,255),

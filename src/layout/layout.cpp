@@ -25,9 +25,20 @@ void prioritize_disclosure(Layout& layout) {
 }
 Vec3 layout_slot(std::size_t index,const LayoutConfig& config) {
     const auto columns=std::max<std::size_t>(1,config.columns), column=index%columns;
-    const float spacing=std::max(2.4f,config.spacing);
+    const auto budget=std::max<std::size_t>(2,config.page_size);
+    const auto rows=(budget+columns-1)/columns;
+    const float width=std::max(0.1f,config.object_width);
+    const float margin=std::max(0.0f,config.edge_margin);
+    const auto pitch=[&](float extent,std::size_t count) {
+        return count>1 ? std::max(width,(extent-2*margin-width)/static_cast<float>(count-1)):0.0f;
+    };
+    const float dx=pitch(diorama_size.x,columns), dz=pitch(diorama_size.z,rows);
     const float x=column==0 ? 0.0f:static_cast<float>((column+1)/2)*(column%2 ? -1.0f:1.0f);
-    return {x*spacing,0,3.0f-static_cast<float>(index/columns)*spacing};
+    // Keep center-first ordering, with a centered grid for even column counts.
+    const float offset=columns%2==0 ? 0.5f:0.0f;
+    // Fill from the front, retaining existing positions as more entries arrive.
+    return {diorama_focus.x+(x+offset)*dx,0,
+        diorama_focus.z+(static_cast<float>(rows-1)/2-static_cast<float>(index/columns))*dz};
 }
 std::size_t page_capacity(std::size_t items,const LayoutConfig& config) {
     const auto budget=std::max<std::size_t>(2,config.page_size);
@@ -43,10 +54,11 @@ Layout arrange(std::span<const Item> items,std::size_t page,Vec3 origin,const La
     const auto place=[&](Item item) {
         const auto slot=layout_slot(result.objects.size(),config);
         const bool container=item.category==Category::Directory || item.group!=GroupKind::None;
-        const float size=container ? 1.8f+0.5f*item.salience:0.9f+0.8f*item.salience;
-        const float height=container ? size*0.22f:0.35f+0.8f*item.salience;
+        const float width=std::max(0.1f,config.object_width);
+        const float size=container ? width:0.9f+0.8f*item.salience;
+        const float height=container ? width*0.25f:1.6f;
         result.objects.push_back({std::move(item),origin+slot+Vec3{0,height/2,0},
-            {size,height,size}});
+            {width,height,size}});
     };
     Item remainder;
     remainder.label="Other entries"; remainder.group=GroupKind::Summary;

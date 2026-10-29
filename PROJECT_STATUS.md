@@ -3,8 +3,8 @@
 ## Milestones and validation
 
 - Milestones **1–6 complete and accepted** by the user. Scheduled milestone work
-  is finished. Current work is the requested post-milestone label/content visibility
-  adjustment within DESIGN.md; its visual behavior needs separate X11 validation.
+  is finished. Current work replaces floating scene names with inscriptions on
+  object surfaces within DESIGN.md; its visual behavior needs separate X11 validation.
 - See `MILESTONE6.md` for the audit, changes, measured stress results, limitations,
   and focused manual checklist. Source and tests remain authoritative.
 
@@ -43,14 +43,14 @@
   Filters. Defaults preserve accepted camera limits, easing and navigation model.
 - Shared selection, cached queries, history, integrated inspector, desktop opening
   and terminal cwd behavior remain. Control bytes are escaped in object rows and
-  labels; selected long labels fit the spatial viewport. Sidebar has no decorative
+  labels; long scene names truncate to their object surfaces. Sidebar has no decorative
   window title bar. Esc cancels UI/search/pending validation and never quits.
 
 ## Tests and runtime
 
 - Debug: `cmake --build build -j2`, `ctest --test-dir build --output-on-failure`.
-- Release: same commands with `build-release`. Six suites include the five
-  preserved suites plus `refinement-stress`.
+- Release: same commands with `build-release`. Seven suites include the five
+  preserved suites plus `refinement-stress` and `surface-inscriptions`.
 - New stress fixture: 14,719 entries, including 10,000 miscellaneous files, 2,000
   artifacts, forty 60-member sequences, 250 directories, and 64 nested levels.
   It tests cached preparation and bounded hierarchy/LOD without a real tree scan.
@@ -205,3 +205,167 @@ at `Initialize SDL2: x11 not available`; no visual verification is claimed.
 Manual X11 checks: descend past ten levels and repeatedly use Parent/Backspace;
 ascend above the startup directory; reverse a zoom mid-transition; verify only
 immediate sibling context is drawn and that names remain limited to the CWD.
+
+
+## Object-surface inscriptions
+
+Current-page names now use cached, depth-tested OpenGL text meshes attached to
+world-space faces. They tilt and scale with the objects, with no billboarding,
+screen-space collision displacement or connector lines. Files have broader
+semantic faces carrying small inscriptions directly; generated-file tiles use
+their horizontal top face. No extra name panel or backing card is drawn.
+Directory backdrops and their lettering are now 50 percent taller;
+compound groups gain a shared title fascia. Semantic geometry remains. Default
+grid spacing is 2.8 instead of 3.0, and file bodies have a taller minimum height.
+The fixed current-directory viewport heading and current-level-only naming rule
+remain. Search/filter dimming still applies. Names truncate with `...` at UTF-8
+boundaries to fit a fixed surface width, while the sidebar/inspector keep full names.
+At distance or oblique angles, inscriptions may become unreadable or occluded.
+
+The renderer owns a fixed 64-pixel atlas of Dear ImGui's embedded scalable font,
+with mipmapped minification replacing the original small default font bake;
+no new font dependency or filesystem reads were added. Text meshes and GPU buffers
+update on scene revisions rather than camera motion. A separate CPU-only suite
+checks atlas building, truncation, text bounds, face winding, object attachment
+and rebase scaling. There are now seven suites.
+
+Manual X11 checks: compare file silhouettes and inscription sizes in a mixed-type
+directory, inspect long/Unicode names and loading markers, orbit to confirm text
+stays on the faces, zoom in/out, page through a dense directory, expand a series,
+and descend/ascend through rebasing boundaries. Verify nested/sibling names remain
+absent and full selected names remain available in the inspector. No visual
+acceptance is claimed until those checks are performed.
+
+Inscription validation: Debug and Release builds passed all seven suites;
+`git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`. Surface readability, occlusion, spacing,
+and the revised silhouettes still require manual X11 inspection.
+
+
+## Inscription integration follow-up
+
+Removed the separate front name panels, generated-tile upright sign, and dark
+text backing quads. Each category now places its inscription directly on its
+existing geometry: document names above the horizontal divider, source on the
+slab, executables on the upper beam, images/media on their panels, archives on
+the top band, symlinks on the front linked form, generated tiles on top, and
+other files on the prism face. File font height is 0.16 world units at unit
+browsing scale, independent of salience. Directory backdrops are 3.6 units high
+instead of 2.4 (grounded at zero), with text height increased from 1.45 to 2.175.
+Directory picking bounds accommodate the taller backdrop. Group fascia sizes
+and the current-level naming scope remain unchanged.
+
+Scene lettering uses a fixed high-resolution bake of the already embedded
+scalable font plus mipmapped minification. It remains texture-based text; visual
+sharpness at working distances and oblique angles requires X11 inspection.
+Tests check glyph-only meshes, horizontal tile winding, all ten file categories
+at low/medium/high salience, absence of added name geometry, document divider
+clearance, directory proportions and rebase scaling.
+
+Integration follow-up validation: Debug and Release builds passed all seven
+suites; `git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`. Check the document lettering above its
+divider, relative file/directory font sizes, taller backdrops, top-facing tile
+lettering and sharpness during zoom/orbit under X11.
+
+
+## Consistent widths, lettering, and current-directory title
+
+Visible file faces, directory floors and compound regions now share a common
+width. Horizontal gaps are one eighth of the visible width; default column
+centers remain 2.8 units apart, so visible widths are about 2.489 units and gaps
+about 0.311. The 94-percent directory inset is accounted for explicitly. Files
+retain their semantic forms, widened in place, and have sufficient height for
+the common lettering. Salience retains its ranking and brightness effects;
+width no longer varies by salience or category.
+
+File, directory and group inscriptions use the directory title proportions:
+14.8 units of text width to 2.175 units of nominal font height at directory
+scale. This gives equal font sizes and text capacity for equal-width shapes.
+All names remain on their existing geometric faces, without separate cards.
+
+The current directory now also has a full-scale inscription on its own
+backdrop, using the same metrics as its miniature child directories. It scales
+with the browsing context and is the largest scene text. The fixed viewport
+heading remains. Current-level entry naming and hidden nested/sibling names
+are unchanged. Tests cover the one-eighth gap, common title metrics, face fit
+for all file types, and title promotion when entering directories.
+
+Consistent-width validation: Debug and Release builds passed all seven suites;
+`git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`. Manual X11 checks: compare horizontal gaps
+and displayed name lengths across mixed types, confirm matching entry font sizes,
+inspect the large current-directory backdrop title at startup and after entering
+or leaving directories, and check truncation and readability during orbit/zoom.
+
+
+## Directory-floor distribution
+
+Relaxed the one-eighth-width gap rule. Object sizes, semantic geometry and font
+metrics remain unchanged. Columns and rows now independently span the directory
+floor with a configurable half-unit margin around placement bounds. The default
+five-column/four-row page uses approximately 3.09 units between columns and
+4.12 between rows, replacing the previous uniform 2.8-unit pitch and large rear
+border. The grid is centered on the directory floor, including even-column
+configurations. Shared diorama dimensions now live alongside the layout config.
+
+Object width is configured independently from slot spacing. Sparse pages retain
+the full page grid, so incoming entries, page changes and cached branch copying
+preserve stable anchors. Tests cover balanced margins on all four sides, even
+column counts, unchanged sizes, and stable sparse-to-full placement.
+
+Floor-distribution validation: Debug and Release builds passed all seven suites;
+`git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`. Manual X11 checks: compare front/back/side
+margins on a full page, inspect spacing among mixed file and directory types,
+and page/enter/return to verify the established sizes and text remain unchanged.
+
+
+## Sparse-directory dispersion
+
+Partially filled directory/group pages now choose a dispersed subset of the
+existing floor grid. The row count follows page occupancy; each populated row
+spans available columns, and multiple rows span front-to-back depth. Singletons
+use a middle grid row and central column. Full pages keep their previous grid,
+and object/font sizes are unchanged. Last pages include the remainder summary
+in their displayed-object count before choosing positions.
+
+All chosen positions come from the same fixed slot pool. Metadata updates pin
+known anchors, prefer dispersed free slots for new entries, and then fill other
+unused slots. This avoids moving a directory the user may already be browsing.
+Consequently a completed preview can retain a different order of positions from
+a fresh layout of the same entries. Page caching and navigation use those anchors.
+Tests cover occupancies one through twenty, front/back and side coverage,
+non-overlap, and stable sparse-preview promotion to a full page.
+
+Sparse-dispersion validation: Debug and Release builds passed all seven suites;
+`git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`. Manual X11 checks: inspect directories with
+one, two, three, five, nine and nineteen displayed entries, the last page of a
+large directory, and a preview completing while browsing. Confirm dispersion,
+unchanged sizes, stable loaded anchors and continuous entry/return.
+
+
+## Sparse-layout fallback
+
+Restored front-first placement for partial pages, as requested in preference to
+sparse selections from the full-directory grid. Removed the occupancy-based
+slot selector. Full-page spacing, all object/font sizes and anchored navigation
+are unchanged. Newly loaded entries fill free slots from the front.
+
+Natural dispersion was considered, but arbitrary sparse placements can fragment
+the available floor so a full page no longer fits without moving existing
+objects. The current cache preserves nested-directory anchors and camera
+continuity rather than animating layout repacking. A natural layout therefore
+needs a separate repacking transition (or a different density policy); it is
+deferred instead of retaining the rejected sparse-grid approximation.
+
+Regression coverage now checks that every partial occupancy is a prefix of the
+accepted full-page layout, that loading preserves anchors without overlaps,
+and that a short final page stays in the front row with its summary accessible.
+
+Sparse-fallback validation: Debug and Release builds passed all seven suites;
+`git diff --check` passed. GUI smoke launch stopped at
+`Initialize SDL2: x11 not available`. Manual X11 checks: confirm short directories
+and partial final pages fill from the front, full directories retain accepted
+spacing, and entering/returning preserves the established geometry and text.

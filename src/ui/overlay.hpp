@@ -11,5 +11,5 @@ struct OverlayState {
     bool cancel_edits=false,capture_navigation=false,release_focus=false;
 };
 UiAction overlay(Browser& browser,OverlayState& state,float panel_width);
-void scene_labels(const Presentation& scene,const Camera& camera,float left,float width,float height);
+void scene_heading(const Presentation& scene,float left,float width,float height);
 }

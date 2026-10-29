@@ -78,6 +78,7 @@ void Browser::refresh_scene() {
     scene.context_name=display_name(directory.name.empty() || directory.name=="." || directory.name==".." ?
         directory.full_path:directory.name);
     if (navigation.context().group) scene.context_name+=" / ["+display_name(navigation.context().group->label)+"]";
+    scene.labels.push_back(backdrop_inscription(hierarchy.node(current_).transform,scene.context_name,semantic_color(Category::Directory)));
     preparation_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
     ++scene_revision;
 }

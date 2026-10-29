@@ -15,8 +15,6 @@ struct LocalTransform {
     Vec3 point(Vec3 local) const { return translation+local*scale; }
 };
 LocalTransform compose(LocalTransform parent,LocalTransform child);
-inline constexpr Vec3 diorama_focus{0,0,-2.5f};
-inline constexpr Vec3 diorama_size{16,2.5f,16};
 LocalTransform contained_transform(const Placement& local);
 struct DirectoryItems { EntryId directory; std::vector<Item> items; };
 struct HierarchyConfig { unsigned preview_depth=3, max_depth=6; };

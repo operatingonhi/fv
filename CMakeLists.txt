@@ -32,13 +32,17 @@ target_link_libraries(browser PUBLIC camera Threads::Threads)
 target_compile_options(browser PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(spatial-navigator
-    src/app/main.cpp src/graphics/renderer.cpp src/ui/overlay.cpp)
+    src/app/main.cpp src/graphics/renderer.cpp src/graphics/inscriptions.cpp src/ui/overlay.cpp)
 target_compile_features(spatial-navigator PRIVATE cxx_std_20)
 target_compile_options(spatial-navigator PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(spatial-navigator PRIVATE browser imgui OpenGL::GL)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(inscription-tests tests/inscription_tests.cpp src/graphics/inscriptions.cpp)
+    target_link_libraries(inscription-tests PRIVATE browser imgui)
+    target_compile_options(inscription-tests PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME surface-inscriptions COMMAND inscription-tests)
     add_executable(refinement-tests tests/refinement_tests.cpp)
     target_link_libraries(refinement-tests PRIVATE browser)
     target_compile_options(refinement-tests PRIVATE -Wall -Wextra -Wpedantic)

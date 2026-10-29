@@ -181,9 +181,9 @@ void Hierarchy::replace_contents(NodeId id,std::vector<Item> items,bool preserve
             node.children[i]=old_children[j]; pinned[i]=true; old_pinned[j]=true; break;
         }
     }
-    // Newly disclosed objects take unused grid slots rather than displacing known ones.
+    // Fill free slots from the front without displacing loaded anchors.
     for (std::size_t i=0;i<node.local.objects.size();++i) if (!pinned[i]) {
-        for (std::size_t slot=0;slot<=std::max<std::size_t>(1,layout_config.page_size);++slot) {
+        for (std::size_t slot=0;slot<std::max<std::size_t>(2,layout_config.page_size);++slot) {
             const auto position=layout_slot(slot,layout_config);
             const auto x=position.x,z=position.z;
             bool used=false;
