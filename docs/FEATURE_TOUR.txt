@@ -1,0 +1,40 @@
+SPATIAL NAVIGATOR FEATURE TOUR
+
+Ordered narration; feature numbers match the on-screen captions.
+Uncaptioned actions are omitted; multi-action features share one caption.
+Holds begin after loading and camera movement settle, so recording times vary.
+File opening is described without launching an editor; the terminal step launches an external application.
+
+A guided tour of the Jurassic Explorer
+1. Recent useful files receive prominent positions and brighter colors.
+2. The inspector shows the full name, path, metadata and salience score.
+3. Older notes remain available with lower salience.
+4. File types have distinct geometry and terminal-inspired colors.
+5. Orbit the scene to inspect depth and nested directory contents.
+6. Orbit back without changing the directory or its layout.
+7. Zoom closer while the background grid gradually refines.
+8. Reset restores the current directory overview.
+9. Focus a source file with a short animated camera movement.
+10. Read source-file details without leaving the spatial browser.
+11. Symlinks retain their own shape, target and metadata.
+12. Related numbered images form a compact compound structure.
+13. Expand a detected sequence to reveal its ordered members.
+14. Individual sequence members remain selectable and inspectable.
+15. Each sequence member keeps its own filename and metadata.
+16. Large directories use bounded pages and a navigable remainder summary.
+17. Tab advances to another page without moving the camera.
+18. Search highlights matching cached names and dims unrelated objects.
+19. Next match crosses pages and focuses the matching file.
+20. Clear the search to restore normal browsing.
+21. Filter out generated build artifacts while keeping their context visible.
+22. Toggle hidden-file visibility without losing the established layout.
+23. Select a document to show its metadata and desktop-opening support.
+24. Regular files can open through xdg-open; this tour keeps the editor closed.
+25. Open a terminal with the selected directory as its working directory.
+26. Enter the deep directory tree to demonstrate continuous navigation.
+27. Descend and ascend through nested directories.
+28. History returns to the previous directory and restores its browsing context.
+29. Forward history restores the next directory and camera state.
+30. Path entry can jump to a directory relative to the current location.
+31. Session settings expose animation, camera sensitivity and nested detail controls.
+Tour over

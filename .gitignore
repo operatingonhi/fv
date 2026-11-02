@@ -1,0 +1,4 @@
+.aider*
+/build*/
+__pycache__/
+*.pyc
