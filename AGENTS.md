@@ -79,8 +79,9 @@ speculative abstractions.
 ## Verification and documentation
 
 For code changes, build after meaningful edits and run applicable independent
-logic tests. README contains Debug/Release and Python commands. Do not require
-OpenGL for pure analysis/layout tests. The feature-tour test uses harmless
+logic tests. README contains Debug/Release and CTest commands; docs/RECORDING.md
+contains the Python recorder checks. Do not require OpenGL for pure
+analysis/layout tests. The feature-tour test uses harmless
 `/bin/true` and `/bin/false` helpers, not graphical editors/terminals.
 
 For documentation-only changes, check links, examples, generated narration parity
@@ -96,5 +97,6 @@ The project is published to `git@github.com:operatingonhi/fv.git` on `master`,
 which tracks `origin/master`. Keep the branch name `master` per the user's
 request. The original GitHub MIT LICENSE commit is preserved through a merge
 of both histories; retain that history and license. Never force-push or reset
-away local work. GitHub's default branch remains the original license-only
-`main`; see PROJECT_STATUS.md for the publication state.
+away local work. `master` is GitHub's default branch and `main` has been deleted.
+The application and executable are named `fv`, inspired by `fsv`. Keep the
+presentation tour documented in docs/RECORDING.md rather than README.md.

@@ -48,7 +48,7 @@ int main() {
         Browser browser(root); OverlayState overlay; DemoTour tour(temporary.path,false);
         const auto plan=demo_steps();
         std::vector<std::string> captions(plan.size());
-        check(tour.caption()=="A guided tour of the Jurassic Explorer","Opening title has the requested wording and no number");
+        check(tour.caption()=="A guided tour of fv","Opening title has the requested wording and no number");
         bool paged=false,searched=false,grouped=false,deep=false,filtered=false,inspected=false,cross_page_match=false,salience_checked=false;
         const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(20);
         while (!tour.done()) {

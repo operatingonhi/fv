@@ -1,11 +1,11 @@
-SPATIAL NAVIGATOR FEATURE TOUR
+fv FEATURE TOUR
 
 Ordered narration; feature numbers match the on-screen captions.
 Uncaptioned actions are omitted; multi-action features share one caption.
 Holds begin after loading and camera movement settle, so recording times vary.
 File opening is described without launching an editor; the terminal step launches an external application.
 
-A guided tour of the Jurassic Explorer
+A guided tour of fv
 1. Recent useful files receive prominent positions and brighter colors.
 2. The inspector shows the full name, path, metadata and salience score.
 3. Older notes remain available with lower salience.

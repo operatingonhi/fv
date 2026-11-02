@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(spatial_navigator VERSION 0.6.0 LANGUAGES CXX)
+project(fv VERSION 0.6.0 LANGUAGES CXX)
 
 find_package(SDL2 REQUIRED CONFIG)
 find_package(OpenGL REQUIRED)
@@ -31,11 +31,11 @@ add_library(browser STATIC
 target_link_libraries(browser PUBLIC camera Threads::Threads)
 target_compile_options(browser PRIVATE -Wall -Wextra -Wpedantic)
 
-add_executable(spatial-navigator
+add_executable(fv
     src/app/main.cpp src/graphics/renderer.cpp src/graphics/inscriptions.cpp src/ui/overlay.cpp)
-target_compile_features(spatial-navigator PRIVATE cxx_std_20)
-target_compile_options(spatial-navigator PRIVATE -Wall -Wextra -Wpedantic)
-target_link_libraries(spatial-navigator PRIVATE browser imgui OpenGL::GL)
+target_compile_features(fv PRIVATE cxx_std_20)
+target_compile_options(fv PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(fv PRIVATE browser imgui OpenGL::GL)
 
 include(CTest)
 if(BUILD_TESTING)

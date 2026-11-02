@@ -20,7 +20,7 @@ class RecorderTests(unittest.TestCase):
         with patch.object(recorder.shutil, "which", return_value=None), \
              patch.object(recorder, "x11_available", return_value=False), \
              patch.object(recorder.subprocess, "run") as run:
-            problems = recorder.preflight(REPO / "build/spatial-navigator", ":99", True)
+            problems = recorder.preflight(REPO / "build/fv", ":99", True)
         self.assertTrue(any("ffmpeg" in problem for problem in problems))
         self.assertTrue(any("xorg-server-xvfb" in problem for problem in problems))
         run.assert_not_called()
@@ -78,7 +78,7 @@ class RecorderTests(unittest.TestCase):
                 self.returncode = 0
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "recording"
-            binary = REPO / "build/spatial-navigator"
+            binary = REPO / "build/fv"
             args = type("Args", (), {"binary": binary, "xvfb": None, "check": False,
                                       "output": output, "timeout": 10, "size": size})()
             commands = []
@@ -120,7 +120,7 @@ class RecorderTests(unittest.TestCase):
             existing.mkdir()
             marker = existing / "keep.txt"
             marker.write_text("keep")
-            args = type("Args", (), {"binary": REPO / "build/spatial-navigator", "xvfb": None,
+            args = type("Args", (), {"binary": REPO / "build/fv", "xvfb": None,
                                       "check": False, "output": existing})()
             with patch.object(recorder, "preflight", return_value=[]):
                 with self.assertRaises(FileExistsError):
@@ -130,7 +130,7 @@ class RecorderTests(unittest.TestCase):
     def test_check_creates_no_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "unused"
-            args = type("Args", (), {"binary": REPO / "build/spatial-navigator", "xvfb": None,
+            args = type("Args", (), {"binary": REPO / "build/fv", "xvfb": None,
                                       "check": True, "output": output})()
             with patch.object(recorder, "preflight", return_value=[]):
                 recorder.record(args)

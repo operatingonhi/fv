@@ -17,14 +17,16 @@ SSH authentication, fetch and push succeeded after the user corrected the key.
 - Dear ImGui remains a pinned Git submodule at
   `4e99c0ab1a28c2b3d1f250ec0266dbf1e455ef58`; build directories and Python caches
   remain ignored.
-- GitHub's default branch remains the original license-only `main`. The project
-  is on `master`; setting the repository's default branch to `master` in GitHub
-  settings remains a separate step. Do not rename the local branch to `main`.
+- The user set GitHub's default branch to `master` and deleted `main` through
+  the website. Remote refs confirm both changes. Keep the branch name `master`.
 
-Publication changed Git history and documentation only. No application source
-changed, so the C++ builds and runtime tests were not rerun. Documentation checks
-cover local Markdown links and `git diff --check`; final Git checks cover remote
-tip equality, retained ancestry, LICENSE and the submodule reference.
+## Project name and README
+
+The application, executable and CMake project are named `fv`, inspired by `fsv`.
+Window titles, usage text, scripts, narration and build/run examples use `fv`.
+Internal `spatial` namespaces and the existing `FSN_TERMINAL` environment variable
+remain unchanged. README describes normal browsing; the presentation-only tour
+and its recording dependencies/commands remain in docs/RECORDING.md.
 
 ## Product state to preserve
 
@@ -58,7 +60,7 @@ split across filesystem, analysis, layout, graphics, navigation, UI and app.
 ## Tour and recording preferences
 
 The current tour in `src/app/demo.cpp` has 55 actions, 31 numbered descriptions,
-“A guided tour of the Jurassic Explorer” and “Tour over” as unnumbered titles.
+“A guided tour of fv” and “Tour over” as unnumbered titles.
 It descends/ascends four nested levels under one caption with no depth count.
 Routine actions still execute silently; explicit skipped actions were removed.
 `docs/FEATURE_TOUR.txt` must match generated output; edit the compiled plan when
@@ -80,9 +82,11 @@ be fresh. No supplemental programs may be downloaded/installed by the agent.
 
 ## Validation and remaining limits
 
-Last code-change validation: Debug and Release builds passed all nine CTest
-suites; all eight Python recorder checks passed. Generated narration matched the
-checked-in text byte for byte. Coverage includes forty-level navigation/rebasing,
+Validation for the fv rename: Debug and Release builds passed all nine CTest
+suites; all eight Python recorder checks passed. Both executables report `fv`
+in `--help`. Regenerated narration matches both builds byte for byte. Eleven
+local Markdown links and `git diff --check` passed; old application names are
+absent from project source/docs. Coverage includes forty-level navigation/rebasing,
 stable anchors, bounded large directories, grouping, inscriptions, reversible
 grid fades, full four-level tour, harmless launch success/failure, square capture
 offsets and refusal of a WM size override. Stress tests use 14,719 cached entries.
@@ -98,11 +102,3 @@ Remaining implementation limits: main-thread analysis after asynchronous reads
 can pause on huge listings; caches retain memory; no automatic refresh/watchers,
 fine-grained eviction, Unicode-normalized search, persisted settings or usage
 learning. A blocked kernel filesystem call can delay worker shutdown.
-
-Documentation cleanup consolidates the obsolete milestone audit and historical
-follow-ups into these current references. `MILESTONE6.md` and generated Python
-bytecode caches were removed; useful source/tests, ImGui and recording docs were
-retained. Cleanup validation checked thirteen local Markdown links, documented
-CLI flags, nine registered CTest suites, eight recorder test definitions,
-narration parity in both builds and `git diff --check`. No C++ code changed and
-the already-passing code test suites were not rerun for this documentation edit.

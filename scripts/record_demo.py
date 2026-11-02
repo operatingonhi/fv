@@ -194,7 +194,7 @@ def record(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, default=REPO / "build/spatial-navigator")
+    parser.add_argument("--binary", type=Path, default=REPO / "build/fv")
     parser.add_argument("--output", type=Path, default=Path("demo-recording-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")))
     parser.add_argument("--check", action="store_true", help="Check dependencies and X11 access without recording")
     parser.add_argument("--xvfb", metavar=":99", help="Use a new isolated X11 display instead of the current desktop")

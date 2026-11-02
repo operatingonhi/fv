@@ -41,7 +41,7 @@ std::vector<DemoStep> demo_steps() {
     };
     const auto silent=[&](Kind kind,std::string target="",float seconds=3) { add(kind,std::move(target),"",seconds,0,Narration::Silent); };
     const auto continuation=[&](Kind kind,std::string target="",float seconds=3) { add(kind,std::move(target),"",seconds,0,Narration::Continue); };
-    add(Kind::Hold,"","A guided tour of the Jurassic Explorer",5,0,Narration::Title);
+    add(Kind::Hold,"","A guided tour of fv",5,0,Narration::Title);
     add(Kind::Focus,"README.txt","Recent useful files receive prominent positions and brighter colors.",5);
     add(Kind::Inspect,"","The inspector shows the full name, path, metadata and salience score.",5);
     add(Kind::Focus,"older-notes.txt","Older notes remain available with lower salience.",4);
@@ -96,7 +96,7 @@ std::vector<DemoStep> demo_steps() {
 }
 std::string demo_script() {
     std::ostringstream text;
-    text<<"SPATIAL NAVIGATOR FEATURE TOUR\n\n"
+    text<<"fv FEATURE TOUR\n\n"
         <<"Ordered narration; feature numbers match the on-screen captions.\n"
         <<"Uncaptioned actions are omitted; multi-action features share one caption.\n"
         <<"Holds begin after loading and camera movement settle, so recording times vary.\n"
@@ -117,7 +117,7 @@ std::filesystem::path prepare_demo(const std::filesystem::path& output) {
     const auto root=std::filesystem::absolute(output/"demo-root");
     if (!std::filesystem::create_directory(root)) throw std::runtime_error("Demo fixture already exists: "+root.string());
     write_demo_script(output/"FEATURE_TOUR.txt");
-    new_file(root/"README.txt","Spatial Navigator Demonstration\n\nThis harmless document is inspected by the automated feature tour.\nThe browser keeps filenames, metadata and spatial context available together.\n");
+    new_file(root/"README.txt","fv Demonstration\n\nThis harmless document is inspected by the automated feature tour.\nThe browser keeps filenames, metadata and spatial context available together.\n");
     new_file(root/"older-notes.txt","Old project notes remain accessible.\n");
     std::filesystem::last_write_time(root/"older-notes.txt",std::filesystem::file_time_type::clock::now()-std::chrono::hours(24*365));
     for (const auto* name:{"workspace","frames","overloaded","deep-tree"}) std::filesystem::create_directory(root/name);

@@ -1,8 +1,9 @@
 # Automated feature tour and video recording
 
-The tour drives the real browser actions without keyboard or mouse input. It
-creates its own filesystem fixture and leaves personal files alone. The ordered
-narration is in [FEATURE_TOUR.txt](FEATURE_TOUR.txt): 31 numbered features plus
+This presentation-only tour drives fv's real browser actions without keyboard
+or mouse input. It creates its own filesystem fixture and leaves personal files
+alone. The ordered narration is in [FEATURE_TOUR.txt](FEATURE_TOUR.txt):
+31 numbered features plus
 the unnumbered opening and closing titles. The 55 underlying actions include
 routine steps without captions. Terminal setup shares one caption; descent and
 ascent through four nested levels share another, without a depth count in the
@@ -63,8 +64,8 @@ Add these rules to your i3 configuration, then reload it (`i3-msg reload`, or
 your configured reload shortcut) before launching the recorder:
 
 ```i3
-for_window [title="^Spatial navigator - Feature tour$"] floating enable, border none
-for_window [title="^Spatial Navigator: Terminal working directory$"] floating enable
+for_window [title="^fv - Feature tour$"] floating enable, border none
+for_window [title="^fv: Terminal working directory$"] floating enable
 ```
 
 Floating lets the application request a square client area; tiling would resize
@@ -138,9 +139,9 @@ never executed or opened as archives.
 ## Run the tour without recording
 
 ```sh
-./build/spatial-navigator --demo /tmp/spatial-live-tour
-./build/spatial-navigator --demo /tmp/spatial-square-preview --demo-size 1000x1000
-./build/spatial-navigator --demo /tmp/spatial-preview --demo-no-launch
+./build/fv --demo /tmp/spatial-live-tour
+./build/fv --demo /tmp/spatial-square-preview --demo-size 1000x1000
+./build/fv --demo /tmp/spatial-preview --demo-no-launch
 ```
 
 Each command needs a new output location or a location with none of the reserved
@@ -152,8 +153,8 @@ exits automatically after all steps, and stops on a missing target or load timeo
 Offline commands do not require a display:
 
 ```sh
-./build/spatial-navigator --write-demo-script /tmp/FEATURE_TOUR.txt
-./build/spatial-navigator --prepare-demo /tmp/spatial-tour-fixtures
+./build/fv --write-demo-script /tmp/FEATURE_TOUR.txt
+./build/fv --prepare-demo /tmp/spatial-tour-fixtures
 ```
 
 The recorder's `--demo-wait` handshake waits until the initial reads finish and
@@ -161,6 +162,12 @@ capture is running before beginning the tour. This flag is intended for the
 recorder, not ordinary live previews.
 
 ## Validation limits
+
+Run the recorder's eight CPU-only Python checks with:
+
+```sh
+python3 -B tests/record_demo_tests.py
+```
 
 The CPU-only `feature-tour` test runs all 55 actions against the generated real
 filesystem with external launches disabled. It checks silent actions, shared

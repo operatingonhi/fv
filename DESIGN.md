@@ -2,8 +2,8 @@
 
 ## Intent and scope
 
-A small native Linux/X11 filesystem navigator inspired by early spatial browsers
-and the navigator shown in Jurassic Park. Filesystem hierarchy should feel like
+fv is a small native Linux/X11 filesystem navigator inspired by fsv and the
+navigator shown in Jurassic Park. Filesystem hierarchy should feel like
 nested places, and prominence should direct attention toward useful files.
 The working application uses C++20, SDL2, OpenGL 3.3 Core, Dear ImGui and CMake.
 Milestones 1–6 are complete; mock data remains for regression tests only.
@@ -12,7 +12,7 @@ Keep the interface primarily 2.5D: a shallow perspective view, planar directory
 floors, simple semantic geometry, restrained terminal-inspired colors, and short
 responsive animation. Do not introduce first-person flight, uncontrolled roll,
 detailed models, a game engine, an embedded browser or heavy visual effects.
-The executable is `spatial-navigator`; the tour uses the name Jurassic Explorer.
+The application and executable are named `fv`.
 
 ## Spatial continuity and loading
 
@@ -140,7 +140,7 @@ failures. Normal Esc cancels transient state and does not quit.
 
 The C++ tour creates a fresh disposable real-filesystem fixture and drives normal
 browser actions. It has 55 actions and 31 numbered features plus the unnumbered
-“A guided tour of the Jurassic Explorer” and “Tour over”. Generate
+“A guided tour of fv” and “Tour over”. Generate
 [docs/FEATURE_TOUR.txt](docs/FEATURE_TOUR.txt) from that same plan. Omit silent
 actions from the text; shared feature captions span multiple actions. Four nested
 levels demonstrate descent/ascent with one description and no depth count.

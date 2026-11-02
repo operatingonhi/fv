@@ -83,7 +83,7 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     if (!state.focus_search && state.search!=browser.query().text && !ImGui::GetIO().WantTextInput) state.search=browser.query().text;
     ImGui::SetNextWindowPos({8,8},ImGuiCond_Always);
     ImGui::SetNextWindowSize({panel_width-16,ImGui::GetIO().DisplaySize.y-16},ImGuiCond_Always);
-    ImGui::Begin("Spatial navigator",nullptr,ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoTitleBar);
+    ImGui::Begin("fv",nullptr,ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoTitleBar);
     ImGui::BeginDisabled(!browser.history.can_back());
     if (ImGui::Button("Back")) action={ActionKind::Back};
     ImGui::EndDisabled(); ImGui::SameLine();

@@ -63,7 +63,7 @@ int main(int argc,char** argv) {
     bool path_set=false,demo_wait=false,demo_no_launch=false;
     std::optional<spatial::DemoWindowSize> demo_size;
     std::filesystem::path demo_output,script_output,prepare_output;
-    const auto usage=[] { std::cerr<<"Usage: spatial-navigator [directory] [--smoke-test [capture.ppm]]\n       spatial-navigator --demo OUTPUT_DIRECTORY [--demo-wait] [--demo-no-launch] [--demo-size WIDTHxHEIGHT]\n       spatial-navigator --write-demo-script FILE | --prepare-demo OUTPUT_DIRECTORY\n"; };
+    const auto usage=[] { std::cerr<<"Usage: fv [directory] [--smoke-test [capture.ppm]]\n       fv --demo OUTPUT_DIRECTORY [--demo-wait] [--demo-no-launch] [--demo-size WIDTHxHEIGHT]\n       fv --write-demo-script FILE | --prepare-demo OUTPUT_DIRECTORY\n"; };
     for (int i=1;i<argc;++i) {
         const std::string_view arg=argv[i];
         if (arg=="--help") { usage(); return 0; }
@@ -108,7 +108,7 @@ int main(int argc,char** argv) {
             throw std::runtime_error("Requested demo window does not fit the first display; choose a smaller --demo-size or a suitably sized Xvfb display");
         const int window_width=demo_size ? demo_size->width:display.w;
         const int window_height=demo_size ? demo_size->height:display.h;
-        runtime.window=SDL_CreateWindow(demo ? "Spatial navigator - Feature tour":"Spatial navigator - Milestone 5",
+        runtime.window=SDL_CreateWindow(demo ? "fv - Feature tour":"fv",
             demo ? display.x+(display.w-window_width)/2:SDL_WINDOWPOS_CENTERED,
             demo ? display.y+(display.h-window_height)/2:SDL_WINDOWPOS_CENTERED,window_width,window_height,
             SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI|(demo ? SDL_WINDOW_BORDERLESS:0));
@@ -296,7 +296,7 @@ int main(int argc,char** argv) {
                             // Let the WM apply floating/size rules before choosing the capture rectangle.
                             if (SDL_GetTicks64()-demo_geometry_since>=500) {
                                 if (demo_size && (actual.w!=demo_size->width || actual.h!=demo_size->height))
-                                    throw std::runtime_error("Window manager changed the requested demo size; in i3, float the 'Spatial navigator - Feature tour' window before recording (see docs/RECORDING.md)");
+                                    throw std::runtime_error("Window manager changed the requested demo size; in i3, float the 'fv - Feature tour' window before recording (see docs/RECORDING.md)");
                                 // Capture the actual client area, including any terminal placed over it.
                                 std::ofstream ready(demo_output/"ready.tmp");
                                 ready<<actual.w<<' '<<actual.h<<' '<<actual.x<<' '<<actual.y<<'\n'; ready.close();

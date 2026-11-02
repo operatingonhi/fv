@@ -22,7 +22,7 @@ def main():
         # that area is a square centered within a widescreen desktop.
         geometry = f"60x16+{x + max(12, (width - 560) // 2)}+{y + max(12, (height - 340) // 2)}"
         command = ["urxvt", "-geometry", geometry,
-                   "-title", "Spatial Navigator: Terminal working directory", "-e", sys.executable,
+                   "-title", "fv: Terminal working directory", "-e", sys.executable,
                    str(Path(__file__).resolve()), "show-terminal", str(target)]
         return subprocess.call(command, cwd=target)
     if Path.cwd().resolve() != target:
