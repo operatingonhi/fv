@@ -144,9 +144,9 @@ never executed or opened as archives.
 ```
 
 Each command needs a new output location or a location with none of the reserved
-demo files. Both commands keep file opening caption-only. The first uses normal terminal
-settings and launches a terminal; the second labels the terminal step as disabled,
-for a preview without external launches. Both need X11. The program
+demo files. All commands keep file opening caption-only and need X11. Commands
+without `--demo-no-launch` use normal terminal settings and launch a terminal;
+`--demo-no-launch` labels the terminal step as disabled for previews. The program
 exits automatically after all steps, and stops on a missing target or load timeout.
 
 Offline commands do not require a display:
@@ -173,5 +173,6 @@ terminal and verifies the whole tour continues after a successful launch.
 Missing helpers and nonzero helper exits are checked separately. Ordinary
 status messages, including successful terminal launches, do not abort the tour.
 
-In the current execution environment FFmpeg/FFprobe and the configured recorder terminal are absent, and
-X11 initialization fails. No completed video or visual acceptance is claimed.
+Environment-specific blockers and the latest validation results are recorded in
+[PROJECT_STATUS.md](../PROJECT_STATUS.md). Recheck prerequisites after rebuilding
+the container; automated tests alone do not verify GUI placement or video capture.
