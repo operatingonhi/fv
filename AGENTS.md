@@ -90,12 +90,11 @@ running and inspecting it on X11. Report the tested scope and remaining limits.
 Keep dependency requirements and environment-specific blockers in the current
 handoff rather than preserving obsolete “latest” results across documents.
 
-## GitHub handoff
+## GitHub repository
 
-The user has authorized uploading this project to
-`git@github.com:operatingonhi/fv.git`. The user is rebuilding with `openssh` and
-will explicitly ask to continue afterward. Follow PROJECT_STATUS's resume steps:
-inspect current state, fetch the existing remote and preserve its MIT LICENSE
-commit by merging both histories before pushing. Determine the remote default
-branch rather than assuming `main`. Never force-push, reset away local work or
-replace the remote license. SSH authentication has not yet been tested.
+The project is published to `git@github.com:operatingonhi/fv.git` on `master`,
+which tracks `origin/master`. Keep the branch name `master` per the user's
+request. The original GitHub MIT LICENSE commit is preserved through a merge
+of both histories; retain that history and license. Never force-push or reset
+away local work. GitHub's default branch remains the original license-only
+`main`; see PROJECT_STATUS.md for the publication state.

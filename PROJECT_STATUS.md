@@ -1,51 +1,30 @@
 # Current handoff
 
-Updated 2026-11-02. Read this with README.md, DESIGN.md and AGENTS.md after the
-container restart. Source/tests and current Git state remain authoritative.
+Updated 2026-11-02. Read this with README.md, DESIGN.md and AGENTS.md.
+Source/tests and current Git state remain authoritative.
 
-## Next task: finish the authorized GitHub upload
+## GitHub publication
 
-The user requested publication to `git@github.com:operatingonhi/fv.git` and is
-rebuilding the Void Linux container with `openssh`. After reopening it, they will
-relaunch Codex and ask to continue. Resume that upload, not feature development.
+The project is published to `git@github.com:operatingonhi/fv.git` on `master`,
+which tracks `origin/master`. The user explicitly requested keeping `master`.
+SSH authentication, fetch and push succeeded after the user corrected the key.
 
-State at handoff:
+- The remote initially contained only MIT LICENSE commit `a280522` on `main`.
+  Merge commit `2d17172` joins that history with the local project history.
+  LICENSE is byte-for-byte identical to the original GitHub file.
+- Local implementation commits and the original remote commit are retained;
+  no force-push was used. Inspect `git log -1` for the current documentation tip.
+- Dear ImGui remains a pinned Git submodule at
+  `4e99c0ab1a28c2b3d1f250ec0266dbf1e455ef58`; build directories and Python caches
+  remain ignored.
+- GitHub's default branch remains the original license-only `main`. The project
+  is on `master`; setting the repository's default branch to `master` in GitHub
+  settings remains a separate step. Do not rename the local branch to `main`.
 
-- `origin` is configured to that SSH URL; the local branch is `master`.
-- The implementation is committed. `e55ca72` adds the recorder scripts, tour text,
-  recording guide and ignore rules on top of `2bea4f0` (`V0.0`). The documentation
-  consolidation/cleanup is a subsequent local commit; inspect `git log -1` and
-  `git status` for the current tip instead of assuming an old hash is HEAD.
-- Nothing has been fetched from or pushed to GitHub. `git ls-remote` failed with
-  `cannot run ssh: No such file or directory`. Missing program: `ssh`; expected
-  Void package: `openssh`. GitHub authentication/key/agent access is untested.
-- The user reports the remote contains only an MIT license created on GitHub.
-  Its actual contents and default branch have not been fetched or verified.
-  Preserve that remote commit and LICENSE when joining histories.
-- Build directories and Python caches are ignored. Dear ImGui remains a pinned
-  upstream submodule; do not add its checkout as ordinary project files.
-
-Resume sequence, already authorized by the user:
-
-1. Inspect `git status --short`, `git log -3 --oneline`, `git branch -vv`,
-   `git remote -v` and `git submodule status`. Preserve any new user edits.
-2. Confirm `ssh` exists and GitHub authentication works through the user's normal
-   SSH key/agent. Never print private keys or install packages in the running
-   container. If credentials/access are unavailable, report the exact blocker.
-3. Run `git ls-remote --symref origin HEAD` to learn the remote default branch,
-   then `git fetch origin`. Inspect the remote commit and MIT license.
-4. Merge `origin/<remote-default-branch>` with `--allow-unrelated-histories`,
-   preserving local project history and the GitHub LICENSE. Resolve any actual
-   conflicts without discarding either side; do not force-push or recreate the
-   license from memory. Align the local branch name with the remote default if
-   appropriate; do not assume it is `main`.
-5. Push the integrated branch to the remote default branch and set its upstream.
-   Verify the remote tip matches the local tip, the LICENSE is present, the
-   submodule reference is retained and the working tree is clean.
-6. Replace this pending-upload handoff and AGENTS's temporary GitHub handoff with
-   the actual publication result/remaining work; commit and push those updates.
-   No additional publication confirmation is required after the user asks to
-   continue; upload authorization already exists.
+Publication changed Git history and documentation only. No application source
+changed, so the C++ builds and runtime tests were not rerun. Documentation checks
+cover local Markdown links and `git diff --check`; final Git checks cover remote
+tip equality, retained ancestry, LICENSE and the submodule reference.
 
 ## Product state to preserve
 
@@ -111,9 +90,9 @@ These are CPU/process/mocked-capture checks, not GUI/video acceptance.
 
 The user has run recording locally and reported the terminal opened/closed.
 The latest i3/square capture and final video have not been visually verified by
-this agent. In the pre-rebuild container, `ssh`, FFmpeg/FFprobe, `urxvt` and Xvfb
-were absent; prior SDL startup reported `x11 not available`. Recheck the rebuilt
-environment instead of assuming those package/display failures still apply.
+this agent. OpenSSH is installed and GitHub access works. Availability of
+FFmpeg/FFprobe, `urxvt`, Xvfb and a working native X11 display has not been
+rechecked in the rebuilt container; verify these before recording or GUI tests.
 
 Remaining implementation limits: main-thread analysis after asynchronous reads
 can pause on huge listings; caches retain memory; no automatic refresh/watchers,
