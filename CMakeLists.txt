@@ -27,7 +27,7 @@ add_library(browser STATIC
     src/filesystem/model.cpp src/filesystem/reader.cpp src/filesystem/mock_filesystem.cpp src/analysis/analysis.cpp src/analysis/query.cpp
     src/layout/layout.cpp src/layout/hierarchy.cpp src/navigation/navigation.cpp
     src/navigation/spatial_selection.cpp src/navigation/path.cpp src/navigation/history.cpp
-    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp src/app/browser_navigation.cpp src/app/browser_surroundings.cpp src/app/browser_rebase.cpp src/app/desktop.cpp)
+    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp src/app/browser_navigation.cpp src/app/browser_surroundings.cpp src/app/browser_rebase.cpp src/app/desktop.cpp src/app/demo.cpp)
 target_link_libraries(browser PUBLIC camera Threads::Threads)
 target_compile_options(browser PRIVATE -Wall -Wextra -Wpedantic)
 
@@ -39,6 +39,11 @@ target_link_libraries(spatial-navigator PRIVATE browser imgui OpenGL::GL)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(demo-tests tests/demo_tests.cpp)
+    target_link_libraries(demo-tests PRIVATE browser)
+    target_compile_options(demo-tests PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME feature-tour COMMAND demo-tests)
+    set_tests_properties(feature-tour PROPERTIES TIMEOUT 30)
     add_executable(grid-tests tests/grid_tests.cpp)
     target_link_libraries(grid-tests PRIVATE camera)
     target_compile_options(grid-tests PRIVATE -Wall -Wextra -Wpedantic)

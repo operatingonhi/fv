@@ -98,7 +98,7 @@ void Browser::focus_overview() {
     camera.focus(hierarchy.focus(current_),animations,24*scale,scale,hierarchy.node(current_).transform.translation.y);
 }
 void Browser::update(float seconds) {
-    for (const auto& error:launcher_.poll()) notice=error;
+    for (const auto& error:launcher_.poll()) notice=desktop_launch_error_=error;
     if (loader_) for (auto& result:loader_->poll_validations()) process_validation(std::move(result));
     bool changed=false;
     std::vector<LoadResult> results;

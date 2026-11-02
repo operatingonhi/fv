@@ -27,6 +27,8 @@ public:
     bool search_incomplete() const { return query_result_.incomplete; }
     bool eligible(const Item& item) const { return !query_.active() || item_matches(item,query_result_); }
     const Item* selected_item() const;
+    // Only failures from the latest desktop action; notice also contains success/status text.
+    const std::string& desktop_launch_error() const { return desktop_launch_error_; }
     std::string status,notice;
     Filesystem filesystem;
     LoadPolicy load_policy;
@@ -132,5 +134,6 @@ private:
     std::size_t next_state_=1,generation_=0,next_validation_=1,location_tag_=0;
     std::map<std::size_t,Validation> validations_;
     DesktopLauncher launcher_;
+    std::string desktop_launch_error_;
 };
 }

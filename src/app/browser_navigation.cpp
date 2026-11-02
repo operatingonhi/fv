@@ -87,6 +87,7 @@ void Browser::restore_view(std::size_t state) {
 }
 void Browser::validate(const std::filesystem::path& path,Validation action,bool directory_only) {
     if (!loader_) return;
+    if (action.purpose==Purpose::Activate || action.purpose==Purpose::Terminal) desktop_launch_error_.clear();
     const auto tag=next_validation_++;
     if (action.purpose==Purpose::Location || action.purpose==Purpose::History || action.purpose==Purpose::Parent) {
         if (location_tag_) validations_.erase(location_tag_);
@@ -184,6 +185,7 @@ void Browser::process_validation(PathValidation result) {
     if (result.tag==location_tag_) location_tag_=0;
     if (action.purpose==Purpose::Parent && (action.generation!=generation_ || current_!=0 || navigation.context().group)) return;
     if (!result.error.empty()) {
+        if (action.purpose==Purpose::Activate || action.purpose==Purpose::Terminal) desktop_launch_error_=result.error;
         if (action.purpose==Purpose::History && action.history_index<history.entries().size() &&
             history.at(action.history_index).state==action.history_state) history.invalidate(action.history_index);
         notice=result.error; return;
@@ -205,6 +207,7 @@ void Browser::process_validation(PathValidation result) {
         if (result.metadata.kind==EntryKind::Directory) { open_location(result.resolved); notice.clear(); }
         else {
             const auto error=launcher_.launch(file_command(result.resolved));
+            desktop_launch_error_=error;
             notice=error.empty() ? "Default-application launch requested":error;
         }
         break;
@@ -217,6 +220,7 @@ void Browser::process_validation(PathValidation result) {
             const auto fallback=launcher_.launch(plan);
             error=fallback.empty() ? "":error+"; "+fallback;
         }
+        desktop_launch_error_=error;
         notice=error.empty() ? "Terminal launch requested in "+result.resolved.string():error;
         break;
     }

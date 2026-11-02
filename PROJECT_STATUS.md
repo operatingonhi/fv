@@ -49,8 +49,9 @@
 ## Tests and runtime
 
 - Debug: `cmake --build build -j2`, `ctest --test-dir build --output-on-failure`.
-- Release: same commands with `build-release`. Eight suites include the five
-  preserved suites plus `refinement-stress`, `surface-inscriptions` and `grid-refinement`.
+- Release: same commands with `build-release`. Nine suites include the five
+  preserved suites plus `refinement-stress`, `surface-inscriptions`, `grid-refinement`
+  and `feature-tour`.
 - New stress fixture: 14,719 entries, including 10,000 miscellaneous files, 2,000
   artifacts, forty 60-member sequences, 250 directories, and 64 nested levels.
   It tests cached preparation and bounded hierarchy/LOD without a real tree scan.
@@ -403,3 +404,147 @@ mid-transition, zoom with the wheel, focus a tall file, use Back/Forward, orbit
 to shallow pitch and resize. Confirm gradual fine-line fading, stable major-line
 alignment at rebase boundaries, a floor that stays beneath the scene, and no
 objectionable shimmer or distant-edge pop.
+
+
+## Automated feature tour and recording workflow
+
+Added an explicit `--demo OUTPUT_DIRECTORY` mode using a new real-filesystem
+fixture and the normal Browser actions. Its 74 ordered captions match
+`docs/FEATURE_TOUR.txt`, generated from the same C++ plan. The tour waits for
+loading and camera transitions, supports metadata/settings panels, slowly orbits
+and zooms, traverses twelve levels down and up, pages through ninety unrelated
+files, searches to a late-page match, demonstrates relevance/filters/sequence
+members/symlinks/errors, launches a harmless document and terminal, and exercises
+history/path entry. It exits automatically; Escape/window close aborts. Input
+cannot steer the tour. `--demo-no-launch` explicitly labels disabled external
+steps for previews/tests. Offline script/fixture generation needs no X11.
+
+`scripts/record_demo.py` preflights already-installed tools, optionally starts its
+own unused Xvfb display, waits for an application-ready handshake, starts X11
+capture, then releases the tour. It uses private XDG association directories and
+terminal settings, with self-closing xterm helpers for real xdg-open/terminal cwd
+steps. The display capture includes those external windows. It refuses existing
+output directories and only finalizes `tour.mp4` after a successful tour, helper
+markers and FFprobe validation. Captions are burned into the real application;
+there is no audio. Failed captures retain logs and a `.partial.mp4` if produced.
+Normal browser builds gain no supplemental system dependencies.
+
+The CPU-only `feature-tour` suite executes the full plan with external launching
+disabled and checks deep traversal, groups, cross-page search, filters/inspection,
+recency ranking, narration parity, root return and overwrite refusal. Separate
+Python recorder checks verify missing-tool reporting, private associations,
+overwrite refusal and check-only behavior. GUI/capture acceptance remains separate.
+
+Recording is blocked in this container: `ffmpeg`, `ffprobe` (Void `ffmpeg`) and
+`xterm` are missing, and SDL reports `x11 not available` for DISPLAY=:0. Recording
+on an isolated display additionally needs `Xvfb` (Void `xorg-server-xvfb`). No
+packages were installed/downloaded and no video has been generated. See
+`docs/RECORDING.md` for commands after rebuilding/providing the environment.
+
+Feature-tour validation: Debug and Release builds passed all nine suites,
+including every one of the 74 tour steps with desktop launches disabled.
+All five Python recorder checks passed, including real private xdg-open
+association dispatch with a filename containing spaces (using a test probe,
+not a GUI viewer). `git diff --check` passed. Recorder preflight still reports
+missing FFmpeg/FFprobe and xterm and unavailable X11 access; no video was
+produced and no GUI or encoding verification is claimed. No packages were
+installed or downloaded.
+
+
+## Caption-only editor demonstration
+
+The tour's text-file step now focuses README.txt, opens its inspector and explains
+manual desktop opening without launching an editor. The narration/caption state
+this explicitly. Removed the editor helper modes, temporary text/plain desktop
+association, xdg-utils recorder prerequisite and required file-opened marker.
+Normal manual file opening and the browser's desktop launcher are unchanged.
+
+The terminal demonstration remains active and self-closes after seven seconds.
+Aligned its helper with the locally configured recorder prerequisite `urxvt`,
+which previously differed from the helper's hard-coded `xterm` command. Tests
+cover the caption-only document step even with external launches enabled, the
+terminal helper command, rejection of legacy editor modes, and video-finalization
+checks that require only the terminal marker.
+
+Editor-step validation: Debug and Release builds passed all nine suites. All
+six Python recorder checks passed, including finalization without an editor
+marker and the retained urxvt terminal launch command. The checked-in narration
+matches the compiled tour; `git diff --check` passed. GUI recording was not run
+in this environment. Rebuild the application before rerunning the recorder so
+the compiled tour uses the new caption-only document step.
+
+
+## Successful terminal launch no longer aborts the tour
+
+The tour incorrectly treated any nonempty browser notice as a desktop-launch
+failure. A successful terminal launch sets a notice, so the tour aborted even
+though the terminal helper ran correctly. Browser desktop errors now have a
+separate accessor carrying validation, spawn and unsuccessful child-exit errors;
+the tour checks that instead of ordinary status text. Manual launch notices and
+the self-closing urxvt helper behavior remain unchanged.
+
+A CPU regression reproduced the abort on the success notice before the fix.
+The enabled tour now completes all steps using `/bin/true` as its harmless
+terminal helper. Additional runs verify that `/bin/false` and a missing helper
+still abort with the actual error. No graphical applications are needed for
+these process-launch tests. Recording instructions now explicitly show the
+incremental CMake build needed after changing compiled tour/browser code.
+
+Terminal-launch validation: Debug and Release builds passed all nine C++ suites,
+including successful and failed real helper processes. All six Python recorder
+checks and `git diff --check` passed. GUI recording remains unverified here;
+the existing environment lacks its recording tools and usable X11 access.
+
+
+## Revised feature-tour narration
+
+Applied the annotations in `docs/FEATURE_TOUR.txt` to both the compiled tour and
+its generated narration. The opening is now the unnumbered “A guided tour of
+the Jurassic Explorer”; the closing is “Tour over”. Removed the image-focus,
+extra symlink-inspection and broken-link activation actions. Actions marked as
+unnecessary to mention still run with no caption or caption panel. Filtering
+starts with excluding generated artifacts. Terminal selection/launch shares
+one description, and each twelve-level descent/ascent shares one description
+without repeating level names or grid commentary.
+
+The tour now contains 71 actions and 32 numbered features. Explicit narration
+modes keep feature numbering independent from action numbering. Text output
+omits silent actions and continuation entries; the diagnostic timeline retains
+all actions and their actual captions. Tests cover silent/shared captions,
+plain titles and removed actions alongside the existing full-tour coverage.
+
+Narration-revision validation: Debug and Release builds passed all nine C++
+suites, and all six Python recorder checks passed. Both executables generate
+text matching `docs/FEATURE_TOUR.txt` byte for byte; `git diff --check` passed.
+The revised captions and video have not been visually inspected under X11.
+
+
+## Shorter traversal and square recordings
+
+Reduced the demo fixture and its traversal to four nested levels in each
+direction. One caption, “Descend and ascend through nested directories”, covers
+the round trip without mentioning a depth count. The tour now has 55 actions and
+31 numbered features. The uncaptioned inspection at the deepest level remains;
+the combined traversal caption resumes when ascending.
+
+The recorder's `--size WIDTHxHEIGHT` now sizes the demo window on an existing
+desktop as well as the optional Xvfb display. The demo accepts `--demo-size`,
+requests a centered borderless window, waits for stable geometry and reports its
+actual client rectangle in the capture handshake. Explicit sizes changed by the
+window manager are rejected before capture. Square captures down to 720x720 are
+supported; 1000x1000 is recommended on a 1080-pixel-tall desktop. The terminal
+helper uses compact geometry positioned relative to the recorded rectangle.
+
+Documented i3 floating rules matching only the tour and helper terminal titles,
+square/nearly-square commands, and the unchanged monitor resolution. Existing
+default runs still request a display-sized window; an unspecified Xvfb size
+still defaults to 1920x1080. No programs or dependencies were installed.
+
+Short-tour/sizing validation: Debug and Release builds passed all nine C++ suites,
+including reaching the fourth level, returning to the root, combined captions
+across the silent inspection and size parsing. All eight Python recorder checks
+passed, including square capture offsets, helper placement and rejection of a
+window-manager size override. Both executables generate the checked-in narration
+exactly; malformed CLI sizes fail before creating output or initializing SDL.
+`git diff --check` passed. Actual i3 placement and video capture remain unverified
+in this environment without usable X11 and the supplemental recording tools.

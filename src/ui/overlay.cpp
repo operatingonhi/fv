@@ -161,8 +161,10 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     ImGui::SameLine(); if (ImGui::Button("Terminal here")) action={ActionKind::Terminal};
     if (ImGui::Button("Activate (Enter)")) action={ActionKind::Open,nav.selected()};
     ImGui::SameLine(); if (ImGui::Button("Reset (R)")) action={ActionKind::Reset};
+    if (state.open_settings) { ImGui::OpenPopup("Settings"); state.open_settings=false; }
     if (ImGui::Button("Settings")) ImGui::OpenPopup("Settings");
     if (ImGui::BeginPopup("Settings")) {
+        if (state.close_settings) { ImGui::CloseCurrentPopup(); state.close_settings=false; }
         ImGui::TextUnformatted("Session settings");
         ImGui::Checkbox("Animate navigation",&browser.animations);
         ImGui::SliderFloat("Duration (seconds)",&browser.camera.animation_duration,0.0f,0.8f,"%.2f");
@@ -191,6 +193,15 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     }
     state.cancel_edits=false;
     return action;
+}
+void demo_caption(std::string_view text,float left,float width,float height) {
+    if (text.empty()) return;
+    auto* draw=ImGui::GetForegroundDrawList();
+    const float size=22,wrap=std::max(100.0f,width-48);
+    const auto bounds=ImGui::GetFont()->CalcTextSizeA(size,FLT_MAX,wrap,text.data(),text.data()+text.size());
+    const float top=height-bounds.y-42;
+    draw->AddRectFilled({left+12,top-12},{left+width-12,height-14},IM_COL32(4,10,16,240),6);
+    draw->AddText(ImGui::GetFont(),size,{left+24,top},IM_COL32(210,233,245,255),text.data(),text.data()+text.size(),wrap);
 }
 void scene_heading(const Presentation& scene,float left,float width,float height) {
     if (width<=0 || height<=0) return;

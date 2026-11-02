@@ -1576,3 +1576,40 @@ Different kinds of files should be recognizable by geometry as well as color.
 Sequential files should behave visually like units within one compound structure rather than unrelated standalone objects.
 
 The scene should feel spatial, animated, nested, and explorable while remaining useful as a real filesystem navigator.
+
+
+# Automated Feature Demonstration
+
+An explicit optional demo mode may create a new disposable filesystem fixture
+and drive the existing browser actions without user input. It must keep the same
+filesystem worker, analysis, geometry, camera, navigation and desktop launch paths
+as interactive use. Ordered short captions should match a plain-text narration
+script generated from the same tour plan. Number features independently of
+actions: routine actions may have no caption, and one feature caption may span
+multiple actions, including deep descent or ascent. Opening and closing titles
+are unnumbered. Omit uncaptioned actions from the narration text. Wait for loading
+and camera movement before each timed hold; abort on missing targets or timeouts.
+
+File opening in the automated tour is described with a selected document and
+its inspector, without launching an editor. Manual file activation remains
+available through the normal desktop association.
+
+The fixture should demonstrate descent/ascent through four nested levels,
+progressive grid refinement,
+orbit/zoom/reset, semantic shapes, relevance, inspection, groups, density/paging,
+search/filters, links, file opening, terminal cwd, history, paths and
+settings. Demo filesystem writes are confined to newly created fixture/output
+files, without overwriting existing outputs or modifying user files.
+
+Video recording is an optional external workflow using already-installed FFmpeg
+and a real X11 display, optionally an isolated Xvfb server. It captures the actual
+rendered application and external demo windows. A requested recording size may
+create a centered window with that aspect ratio, including square videos. Wait
+for window-manager placement to settle and capture the actual client rectangle;
+position the demo terminal over that rectangle. On i3, use narrowly matched
+floating-window rules so tiling does not change the browser during capture.
+Do not substitute synthetic
+frames or report a video completed when capture cannot run. Normal application
+builds must not require these recording tools. Never install or download them
+at runtime. A recorder may use a private desktop-association environment and
+self-closing viewers/terminals for reproducibility without changing user settings.

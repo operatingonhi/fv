@@ -4,7 +4,8 @@ Milestones 1–5 are accepted. Milestone 6 refines the existing spatial browser:
 compact directory pages, stable loaded anchors, bounded nested detail, semantic
 geometry, session settings, and profiling/stress coverage. See [MILESTONE6.md](MILESTONE6.md)
 for the audit, validation results, known limits, and focused GUI checklist.
-There are no destructive file operations or new dependencies.
+The normal browser has no destructive file operations or new build dependencies.
+The optional feature-tour recorder uses supplemental tools described below.
 
 ## Dependencies on Void Linux
 
@@ -86,6 +87,45 @@ camera motion, directory entry/return, resize, rendering, and normal SDL shutdow
 The optional capture is explicit screenshot output, not filesystem input. This
 execution environment cannot connect to X11; GUI behavior requires manual
 verification separately from build/test success.
+
+## Automated feature demonstration
+
+A 55-action tour operates the real browser without user input, presenting 31
+numbered features plus an unnumbered opening and closing title. Its captions
+match [docs/FEATURE_TOUR.txt](docs/FEATURE_TOUR.txt); routine actions run without
+captions, while terminal setup and the combined descent/ascent each share one
+caption across their actions. It uses newly
+created sample files, including four nested directory levels, file categories,
+sequences, build artifacts, an overloaded directory and symlinks. It demonstrates
+navigation in both directions, orbit/zoom/grid refinement, focus/metadata,
+recency ranking, paging, search, filters, a caption-only file-opening explanation,
+terminal cwd, history,
+path entry and settings.
+
+```sh
+./build/spatial-navigator --demo /tmp/spatial-live-tour
+python3 scripts/record_demo.py --check
+python3 scripts/record_demo.py --output /tmp/spatial-feature-recording
+python3 scripts/record_demo.py --size 1000x1000 --output /tmp/spatial-square-recording
+```
+
+Use a new output path. Recording needs Python 3, `ffmpeg`/`ffprobe`, the configured `urxvt` terminal,
+and access to an X11/OpenGL display. The optional `--xvfb :99` recorder
+flag uses an isolated X11 server if `xorg-server-xvfb` is provided. No tool is
+installed or downloaded automatically. On a normal desktop use a dedicated
+workspace: capture includes the demo window's desktop rectangle and the external
+terminal placed over it. `--size` sizes both the window and the video; without
+it, the demo requests the full first display. For i3, see the floating-window
+rules in [docs/RECORDING.md](docs/RECORDING.md).
+The document step shows its inspector and describes opening without launching
+an editor; normal manual file opening is unchanged. The result is a silent MP4 with captions, plus the narration text and
+an event timeline. Terminal settings are private to the recorder's children.
+See [docs/RECORDING.md](docs/RECORDING.md) for prerequisites, output files and
+preview/offline commands.
+
+Video creation is currently blocked here: FFmpeg/FFprobe and the configured recorder terminal are absent,
+and SDL cannot connect to X11. The tour and text script can be tested without a
+display; an actual recording still needs the container/display prerequisites.
 
 ## Filesystem loading and metadata
 
@@ -382,8 +422,12 @@ No runtime helper is installed automatically.
 
 ## Automated validation
 
-All eight suites run without a window or OpenGL context:
+All nine suites run without a window or OpenGL context:
 
+- Feature tour: all 55 actions on a generated real fixture, caption grouping and
+  suppression, unnumbered titles, deep descent/ascent,
+  sequence expansion, cross-page search, inspection/filters, recency ranking,
+  narration parity, return to root and overwrite refusal, without external launches.
 - Grid refinement: progressive/reversible fades, level alignment, floor-height
   transitions, repeated frame mapping and deep browser boundary continuity.
 - Surface inscriptions: font-atlas construction, UTF-8-safe truncation, bounded

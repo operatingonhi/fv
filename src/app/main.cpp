@@ -4,6 +4,7 @@
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_opengl3.h>
 #include "app/browser.hpp"
+#include "app/demo.hpp"
 #include "graphics/picking.hpp"
 #include "graphics/renderer.hpp"
 #include "navigation/navigation.hpp"
@@ -59,19 +60,37 @@ int main(int argc,char** argv) {
     bool smoke=false;
     const char* capture=nullptr;
     std::filesystem::path start=".";
-    bool path_set=false;
-    const auto usage=[] { std::cerr<<"Usage: spatial-navigator [directory] [--smoke-test [capture.ppm]]\n"; };
+    bool path_set=false,demo_wait=false,demo_no_launch=false;
+    std::optional<spatial::DemoWindowSize> demo_size;
+    std::filesystem::path demo_output,script_output,prepare_output;
+    const auto usage=[] { std::cerr<<"Usage: spatial-navigator [directory] [--smoke-test [capture.ppm]]\n       spatial-navigator --demo OUTPUT_DIRECTORY [--demo-wait] [--demo-no-launch] [--demo-size WIDTHxHEIGHT]\n       spatial-navigator --write-demo-script FILE | --prepare-demo OUTPUT_DIRECTORY\n"; };
     for (int i=1;i<argc;++i) {
         const std::string_view arg=argv[i];
         if (arg=="--help") { usage(); return 0; }
-        if (arg=="--smoke-test" && !smoke) {
+        if ((arg=="--demo" || arg=="--write-demo-script" || arg=="--prepare-demo") && i+1<argc) {
+            auto& target=arg=="--demo" ? demo_output:arg=="--write-demo-script" ? script_output:prepare_output;
+            if (!target.empty()) { usage(); return 2; }
+            if (std::string_view(argv[i+1]).starts_with('-')) { usage(); return 2; }
+            target=argv[++i];
+        } else if (arg=="--demo-size" && i+1<argc && !demo_size) {
+            demo_size=spatial::demo_window_size(argv[++i]);
+            if (!demo_size) { std::cerr<<"Demo size must be WIDTHxHEIGHT, with each dimension between 720 and 16384 pixels\n"; return 2; }
+        } else if (arg=="--demo-wait") demo_wait=true;
+        else if (arg=="--demo-no-launch") demo_no_launch=true;
+        else if (arg=="--smoke-test" && !smoke) {
             smoke=true;
             if (i+1<argc && !std::string_view(argv[i+1]).starts_with('-')) capture=argv[++i];
         } else if (!arg.starts_with('-') && !path_set) {
             start=argv[i]; path_set=true;
         } else { usage(); return 2; }
     }
+    const bool demo=!demo_output.empty();
+    const int modes=int(demo)+int(!script_output.empty())+int(!prepare_output.empty())+int(smoke);
+    if (modes>1 || (modes && path_set && !smoke) || ((!demo) && (demo_wait || demo_no_launch || demo_size))) { usage(); return 2; }
     try {
+        if (!script_output.empty()) { spatial::write_demo_script(script_output); return 0; }
+        if (!prepare_output.empty()) { std::cout<<spatial::prepare_demo(prepare_output)<<'\n'; return 0; }
+        if (demo) { demo_output=std::filesystem::absolute(demo_output); start=spatial::prepare_demo(demo_output); }
         Runtime runtime;
         require(SDL_SetHint(SDL_HINT_VIDEODRIVER,"x11")==SDL_TRUE,"Select native X11 driver");
         runtime.sdl=true;
@@ -83,8 +102,16 @@ int main(int argc,char** argv) {
         require(SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE)==0,"Set core profile");
         require(SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1)==0,"Set double buffering");
         require(SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,24)==0,"Set depth buffer");
-        runtime.window=SDL_CreateWindow("Spatial navigator - Milestone 5",SDL_WINDOWPOS_CENTERED,
-            SDL_WINDOWPOS_CENTERED,1100,720,SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
+        SDL_Rect display{0,0,1100,720};
+        if (demo) require(SDL_GetDisplayBounds(0,&display)==0,"Read demo display bounds");
+        if (demo_size && (demo_size->width>display.w || demo_size->height>display.h))
+            throw std::runtime_error("Requested demo window does not fit the first display; choose a smaller --demo-size or a suitably sized Xvfb display");
+        const int window_width=demo_size ? demo_size->width:display.w;
+        const int window_height=demo_size ? demo_size->height:display.h;
+        runtime.window=SDL_CreateWindow(demo ? "Spatial navigator - Feature tour":"Spatial navigator - Milestone 5",
+            demo ? display.x+(display.w-window_width)/2:SDL_WINDOWPOS_CENTERED,
+            demo ? display.y+(display.h-window_height)/2:SDL_WINDOWPOS_CENTERED,window_width,window_height,
+            SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI|(demo ? SDL_WINDOW_BORDERLESS:0));
         require(runtime.window!=nullptr,"Create window");
         SDL_SetWindowMinimumSize(runtime.window,720,480);
         runtime.context=SDL_GL_CreateContext(runtime.window);
@@ -104,6 +131,12 @@ int main(int argc,char** argv) {
         spatial::Browser browser(start);
         spatial::Renderer renderer(browser.scene.boxes,browser.scene.grid,browser.scene.labels);
         spatial::OverlayState overlay_state;
+        std::unique_ptr<spatial::DemoTour> tour;
+        if (demo) tour=std::make_unique<spatial::DemoTour>(demo_output,!demo_no_launch);
+        bool demo_started=false,demo_ready=false;
+        SDL_Rect demo_geometry{};
+        Uint64 demo_geometry_since=SDL_GetTicks64();
+        const auto demo_deadline=SDL_GetTicks64()+45'000;
         auto displayed_history=browser.history.current().state;
         bool running=true, smoke_checked=false, smoke_started=!smoke;
         const auto smoke_deadline=SDL_GetTicks64()+30'000;
@@ -131,6 +164,11 @@ int main(int argc,char** argv) {
             while (SDL_PollEvent(&event)) {
                 const auto& io=ImGui::GetIO();
                 if (event.type==SDL_QUIT || (event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_CLOSE)) running=false;
+                if (demo) {
+                    if (event.type==SDL_KEYDOWN && event.key.keysym.sym==SDLK_ESCAPE) running=false;
+                    if (event.type==SDL_WINDOWEVENT) ImGui_ImplSDL2_ProcessEvent(&event);
+                    continue;
+                }
                 bool consumed=false;
                 if (event.type==SDL_KEYDOWN) {
                     const auto key=event.key.keysym.sym;
@@ -212,6 +250,7 @@ int main(int argc,char** argv) {
                 if (frames==50) { act({spatial::ActionKind::Up}); act({spatial::ActionKind::Reset}); }
             }
             const auto revision=browser.scene_revision;
+            if (demo_started) tour->update(browser,overlay_state,std::min(dt,0.1f));
             browser.update(smoke ? 1.0f/60.0f:std::min(dt,0.1f));
             if (browser.scene_revision!=revision)
                 renderer.set_scene(browser.scene.boxes,browser.scene.grid,browser.scene.labels);
@@ -232,6 +271,8 @@ int main(int argc,char** argv) {
                 act(spatial::overlay(browser,overlay_state,static_cast<float>(panel_width)));
                 spatial::scene_heading(browser.scene,static_cast<float>(panel_width),
                     static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height));
+                if (tour) spatial::demo_caption(demo_started ? tour->caption():"Preparing the automated feature tour...",
+                    static_cast<float>(panel_width),static_cast<float>(logical_width-panel_width),static_cast<float>(logical_height));
                 ImGui::Render();
                 const int drawable_left=width*panel_width/logical_width;
                 renderer.draw(browser.camera,width-drawable_left,height,drawable_left);
@@ -241,6 +282,32 @@ int main(int argc,char** argv) {
                     smoke_checked=true;
                 }
                 SDL_GL_SwapWindow(runtime.window);
+                if (demo && !demo_started) {
+                    if (SDL_GetTicks64()>demo_deadline) throw std::runtime_error("Demo startup timed out waiting for loading or recorder");
+                    if (!browser.loading()) {
+                        if (browser.filesystem.state(0).state==spatial::LoadState::Error) throw std::runtime_error(browser.status);
+                        if (!demo_ready) {
+                            SDL_Rect actual{};
+                            SDL_GetWindowPosition(runtime.window,&actual.x,&actual.y);
+                            SDL_GetWindowSize(runtime.window,&actual.w,&actual.h);
+                            if (actual.x!=demo_geometry.x || actual.y!=demo_geometry.y || actual.w!=demo_geometry.w || actual.h!=demo_geometry.h) {
+                                demo_geometry=actual; demo_geometry_since=SDL_GetTicks64();
+                            }
+                            // Let the WM apply floating/size rules before choosing the capture rectangle.
+                            if (SDL_GetTicks64()-demo_geometry_since>=500) {
+                                if (demo_size && (actual.w!=demo_size->width || actual.h!=demo_size->height))
+                                    throw std::runtime_error("Window manager changed the requested demo size; in i3, float the 'Spatial navigator - Feature tour' window before recording (see docs/RECORDING.md)");
+                                // Capture the actual client area, including any terminal placed over it.
+                                std::ofstream ready(demo_output/"ready.tmp");
+                                ready<<actual.w<<' '<<actual.h<<' '<<actual.x<<' '<<actual.y<<'\n'; ready.close();
+                                if (!ready) throw std::runtime_error("Cannot write demo recorder handshake");
+                                std::filesystem::rename(demo_output/"ready.tmp",demo_output/"ready.txt"); demo_ready=true;
+                            }
+                        }
+                        if (demo_ready && (!demo_wait || std::filesystem::exists(demo_output/"start"))) demo_started=true;
+                    }
+                }
+                if (demo_started && tour->done()) running=false;
             } else if (smoke) {
                 throw std::runtime_error("Smoke test requires a visible drawable window");
             } else {
@@ -252,6 +319,11 @@ int main(int argc,char** argv) {
                 require(SDL_PushEvent(&quit)==1,"Queue smoke-test shutdown");
             }
             if (!vsync && !smoke) SDL_Delay(10);
+        }
+        if (tour) {
+            if (!tour->done()) throw std::runtime_error("Demo stopped before completing all steps");
+            std::ofstream completed(demo_output/"completed.txt"); completed<<"Feature tour complete.\n";
+            if (!completed) throw std::runtime_error("Cannot write demo completion marker");
         }
         if (smoke && !smoke_checked) throw std::runtime_error("Smoke test ended before validation");
         if (smoke) std::cout<<"Smoke test passed: X11, OpenGL, ImGui, scene, transition, resize, shutdown\n";
