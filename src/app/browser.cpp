@@ -244,7 +244,7 @@ void Browser::act(UiAction action) {
     if (file_prompt_ && action.kind!=ActionKind::ConfirmFileOperation && action.kind!=ActionKind::CancelFileOperation &&
         action.kind!=ActionKind::Cancel && action.kind!=ActionKind::None) return;
     switch (action.kind) {
-    case ActionKind::Cut: case ActionKind::Paste: case ActionKind::MoveFile: case ActionKind::DeleteFile:
+    case ActionKind::Cut: case ActionKind::Copy: case ActionKind::Paste: case ActionKind::MoveFile: case ActionKind::DeleteFile:
     case ActionKind::ConfirmFileOperation: case ActionKind::CancelFileOperation: file_action(std::move(action)); break;
     case ActionKind::None: return;
     case ActionKind::Focus: select(action.index,true); break;
@@ -294,7 +294,7 @@ void Browser::act(UiAction action) {
         save_view();
         if (navigation.up()) {
             apply_deferred_=true; current_=parents_.back(); parents_.pop_back();
-            sync_view(); focus_overview(); schedule_previews(); record_view();
+            sync_view(); focus_overview(); request_directory(navigation.context().directory,true,true); schedule_previews(); record_view();
         } else if (loader_) validate(std::filesystem::path(filesystem.path(root_id))/"..",{Purpose::Parent,0,0,generation_},true);
         break;
     case ActionKind::PreviousPage:
@@ -318,7 +318,7 @@ void Browser::act(UiAction action) {
     case ActionKind::Terminal: terminal_here(); break;
     case ActionKind::Cancel:
         if (file_prompt_) { file_prompt_.reset(); break; }
-        cut_file_.reset();
+        file_clipboard_.reset();
         pending_parent_.reset();
         std::erase_if(validations_,[](const auto& entry) { return entry.second.purpose!=Purpose::Surroundings; }); location_tag_=0;
         notice.clear(); query_.text.clear(); query_dirty_=true; refresh_scene(); break;

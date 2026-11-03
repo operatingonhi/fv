@@ -73,15 +73,17 @@ void inspector(const Browser& browser) {
 void file_controls(const Browser& browser,OverlayState& state,UiAction& action) {
     ImGui::BeginDisabled(!browser.can_change_selection());
     if (ImGui::Button("Cut")) action={ActionKind::Cut};
+    ImGui::SameLine(); if (ImGui::Button("Copy")) action={ActionKind::Copy};
     ImGui::EndDisabled(); ImGui::SameLine();
-    ImGui::BeginDisabled(!browser.cut_file() || browser.file_busy());
+    ImGui::BeginDisabled(!browser.file_clipboard() || browser.file_busy());
     if (ImGui::Button("Paste")) action={ActionKind::Paste};
-    ImGui::EndDisabled(); ImGui::SameLine();
+    ImGui::EndDisabled();
     ImGui::BeginDisabled(!browser.can_change_selection());
     if (ImGui::Button("Move...")) action={ActionKind::MoveFile};
     ImGui::SameLine(); if (ImGui::Button("Delete...")) action={ActionKind::DeleteFile};
     ImGui::EndDisabled();
-    if (browser.cut_file()) ImGui::TextWrapped("Cut: %s",browser.cut_file()->source.string().c_str());
+    if (browser.file_clipboard()) ImGui::TextWrapped("%s: %s",
+        browser.file_clipboard()->kind==FileOperationKind::Copy ? "Copied":"Cut",browser.file_clipboard()->source.string().c_str());
     if (browser.file_busy()) ImGui::TextUnformatted("File operation in progress...");
     const auto& prompt=browser.file_prompt();
     if (prompt && !ImGui::IsPopupOpen("File action")) {
@@ -182,7 +184,7 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     // Reserve space in the same sidebar for the summary, controls and optional
     // inspector. Both lists scroll independently; no floating window is needed.
     const auto detail_height=state.inspector ? 200.0f:0.0f;
-    const auto height=std::max(70.0f,ImGui::GetContentRegionAvail().y-240-detail_height);
+    const auto height=std::max(70.0f,ImGui::GetContentRegionAvail().y-260-detail_height);
     if (ImGui::BeginChild("Objects",{0,height},ImGuiChildFlags_Borders)) {
         for (std::size_t i=0;i<layout.objects.size();++i) {
             const auto& item=layout.objects[i].item;

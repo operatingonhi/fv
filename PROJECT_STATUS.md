@@ -59,29 +59,38 @@ split across filesystem, analysis, layout, graphics, navigation, UI and app.
 
 ## File operations
 
-Move (Ctrl+M), cut (Ctrl+X), paste (Ctrl+V) and delete (Delete key) are available
-through shared browser actions and sidebar controls. Actions operate on one real
-selected file/directory/symlink; groups must be expanded. Cut is an internal
-session clipboard. Move asks for an existing destination directory. Delete
+Copy (Ctrl+C), cut (Ctrl+X), paste (Ctrl+V), move (Ctrl+M) and delete (Delete key)
+are available through shared browser actions and sidebar controls. Actions operate
+on one real selected file/directory/symlink; groups must be expanded. The internal session
+clipboard distinguishes Copy from Cut. Paste duplicates Copy sources without
+removing them and keeps them for repeated pastes; a successful cut/paste clears
+its matching clipboard. Move asks for an existing destination directory. Delete
 requires confirmation, is permanent and recursively removes directory contents;
-there is no Trash or undo. Esc cancels a confirmation or pending cut.
+there is no Trash or undo. Esc cancels a confirmation or either clipboard mode.
 
-The existing filesystem worker performs I/O. Move refuses occupied destination
-names atomically, handles cross-filesystem copies through private staging and
-source verification, and does not follow source symlinks. The worker checks
+The existing filesystem worker performs I/O. Transfers refuse occupied destination
+names atomically; copies and cross-filesystem moves use private staging and
+source verification without following source symlinks. The worker checks
 cached device/inode/change-time identity before mutation. In-progress actions
 hold navigation until the result; rendering remains active. Failed paste retains
-its cut source.
-Results invalidate old reads/history caches, prune removed entries on explicit
-refresh and retain surviving anchors. Group mutation returns to the real
+its clipboard source. Results invalidate old reads/history caches, prune removed
+entries on explicit refresh and retain surviving anchors. Group mutation returns to the real
 directory before regrouping; ordinary loading retains disappearance errors.
+Successful moves/deletes additionally remove the confirmed source from active
+and stashed cached hierarchies without regrouping an active ancestor. This fixes
+the stale source graphic when pasting between parent/child contexts. Matching
+includes the parent inode to preserve unrelated same-named hard links. Returning
+to an invalidated parent requests a fresh listing. Copy preserves its source
+graphics. Tests check generated scene boxes, cache contents, camera/grid
+continuity, parent/child moves in both directions and deep rebase boundaries.
 
-Cross-filesystem copies preserve permissions, modification times and symlink
-text, but not ownership, ACLs, extended attributes or hard-link relationships.
+Copies (including cross-filesystem moves) preserve permissions, modification
+times and symlink text, but not ownership, ACLs, extended attributes or hard-link
+relationships.
 Concurrent external changes cannot be made transactional. Permission errors may
 leave partial deletion or a completed destination with source contents remaining;
 these are reported as failures, never as successful moves. No multi-selection,
-system file clipboard, copy action, automatic watcher or undo was added.
+system file clipboard, automatic watcher or undo was added.
 
 ## Tour and recording preferences
 
@@ -112,17 +121,20 @@ File-operation validation: Debug and Release builds pass all ten CTest suites;
 all eight Python recorder checks pass. The new suite uses disposable files and
 tests real cross-filesystem moves between /tmp and the workspace, collisions,
 symlinks, permissions/partial source removal, stale source identities, confirmation
-cancellation, cut/paste retry, stable anchors, group updates and deep cached
-parent returns. Generated narration matches both builds byte for byte. Local
+cancellation, copy/paste reuse, cut/paste retry, stable anchors, group updates and deep cached
+parent returns. Source-graphic regressions inspect hierarchy and generated scene
+geometry in parent/child moves and verify separate hard links remain visible.
+Generated narration matches both builds byte for byte. Local
 Markdown links and `git diff --check` passed. Existing coverage includes
 forty-level navigation/rebasing,
 stable anchors, bounded large directories, grouping, inscriptions, reversible
 grid fades, full four-level tour, harmless launch success/failure, square capture
 offsets and refusal of a WM size override. Stress tests use 14,719 cached entries.
 These are CPU/process/mocked-capture checks. A native X11/OpenGL smoke test also
-passed and its captured sidebar was visually inspected for the new controls.
-The move/delete dialogs and keyboard flows have not been driven interactively
-on X11; confirmation/clipboard behavior is covered through browser-action tests.
+passed and its captured sidebar was visually inspected for the Copy button and
+file controls. Clipboard shortcuts and move/delete dialogs have not been driven
+interactively on X11; behavior is covered through browser-action tests and
+source removal is checked in generated scene geometry.
 
 The user has run recording locally and reported the terminal opened/closed.
 The latest i3/square capture and final video have not been visually verified by

@@ -1,6 +1,7 @@
 #include "layout/hierarchy.hpp"
 #include <algorithm>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace spatial {
 LocalTransform compose(LocalTransform parent,LocalTransform child) {
@@ -217,6 +218,28 @@ void Hierarchy::upsert_directory(DirectoryItems directory,std::vector<Item> indi
     const auto count=nodes_.size();
     for (NodeId id=0;id<count;++id)
         if (nodes_[id].directory==directory.directory) replace_contents(id,directory.items,true);
+    ensure_preview(0,config.preview_depth);
+}
+void Hierarchy::erase_entries(std::span<const EntryId> entries) {
+    if (entries.empty()) return;
+    const std::unordered_set<EntryId> removed(entries.begin(),entries.end());
+    const auto prune=[&](std::vector<Item>& items) {
+        bool changed=false;
+        for (auto& item:items) {
+            const auto previous=item.members.size();
+            std::erase_if(item.members,[&](EntryId id) { return removed.contains(id); });
+            changed=changed || previous!=item.members.size();
+        }
+        std::erase_if(items,[](const Item& item) { return item.members.empty(); });
+        return changed;
+    };
+    for (auto id:entries) { individuals_.erase(id); directories_.erase(id); }
+    for (auto& [id,items]:directories_) { (void)id; prune(items); }
+    const auto count=nodes_.size();
+    for (NodeId id=0;id<count;++id) {
+        auto items=nodes_[id].items;
+        if (prune(items)) replace_contents(id,std::move(items),true);
+    }
     ensure_preview(0,config.preview_depth);
 }
 void Hierarchy::collect(NodeId id) {

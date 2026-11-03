@@ -59,8 +59,9 @@ establish visual correctness. Optional X11 smoke test:
   Partial pages fill from the front; full pages span the directory floor.
 - Search/filtering uses cached metadata, preserves placement and dims nonmatches.
   History restores context. Settings last for the session.
-- Move, cut/paste and confirmed permanent deletion work on individual files,
-  directories and symlinks. File actions refresh cached views after completion.
+- Copy/paste, cut/paste, move and confirmed permanent deletion work on individual
+  files, directories and symlinks. Completed moves remove the source object from
+  cached parent/child views as well as refreshing the destination.
 - No automatic refresh/watchers, filesystem-wide index or persistent preferences
   are implemented. Very large listings can pause main-thread analysis after
   asynchronous enumeration.
@@ -78,26 +79,29 @@ establish visual correctness. Optional X11 smoke test:
 | Ctrl+F; F3 / Shift+F3 | Search; next / previous match |
 | Ctrl+Shift+F; Ctrl+H | Filters; toggle hidden entries |
 | Ctrl+I; Ctrl+Shift+T | Metadata inspector; terminal at selected/current directory |
-| Ctrl+X; Ctrl+V | Cut selection; move the cut entry into the current directory |
+| Ctrl+C; Ctrl+X | Copy selection; cut selection |
+| Ctrl+V | Paste the copied or cut entry into the current directory |
 | Ctrl+M; Delete | Move to a chosen directory; open permanent-delete confirmation |
 | Esc | Cancel transient UI/search/pending navigation; does not quit normal browsing |
 
-The sidebar also provides Cut, Paste, Move and Delete buttons. Expand groups to
-select individual members. Cut is internal to fv and only records the source;
-paste moves it. Esc clears a pending cut or cancels a confirmation. These
-shortcuts leave text editing to the active text field.
+The sidebar also provides Copy, Cut, Paste, Move and Delete buttons. Expand groups
+to select individual members. Copy and Cut use fv's internal clipboard and only
+record the source. Paste duplicates a copied entry or moves a cut entry. A copied
+entry stays available for repeated pastes into other directories; a successful
+cut/paste clears the clipboard. Esc clears either clipboard mode or cancels a
+confirmation. These shortcuts leave text editing to the active text field.
 
-Move destinations must be existing directories; entries keep their names and
-existing destination names are never replaced. Moving between filesystems copies
+Copy and move destinations must be existing directories; entries keep their names
+and existing destination names are never replaced. Moving between filesystems copies
 the entry before removing its source. Permissions and modification times are
-preserved; ownership, extended attributes, ACLs and hard-link relationships are
-not preserved by cross-filesystem copies. Wait for the result before another
-navigation action. Failures appear in the sidebar, including partial source
-removal after a completed copy.
+preserved by copies; ownership, extended attributes, ACLs and hard-link
+relationships are not preserved by copies, including cross-filesystem moves.
+Wait for the result before another navigation action. Failures appear in the
+sidebar, including partial source removal after a completed copy.
 
 Delete requires confirmation and permanently removes a directory and its
-contents. It does not use Trash and has no undo. Moving or deleting a symlink
-acts on the link itself. Confirmation cancellation leaves files untouched.
+contents. It does not use Trash and has no undo. Copying, moving or deleting a
+symlink acts on the link itself. Confirmation cancellation leaves files untouched.
 
 Close the normal application through the window manager. Regular files open via
 `xdg-open`. Terminal precedence is `FSN_TERMINAL`, then `TERMINAL`, then

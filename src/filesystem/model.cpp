@@ -114,4 +114,12 @@ void Filesystem::invalidate() {
         state.message.clear(); state.remove_missing=true;
     }
 }
+void Filesystem::erase(EntryId id) {
+    if (id==root_id) return;
+    auto& removed=entries_.at(id);
+    std::erase(children_.at(removed.parent),id);
+    names_.at(removed.parent).erase(removed.name);
+    removed.kind=EntryKind::Other; removed.error="Entry removed by file operation";
+    removed.modified_known=false;
+}
 }

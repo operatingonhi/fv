@@ -30,7 +30,7 @@ public:
     bool can_change_selection() const;
     bool file_busy() const { return file_busy_; }
     const std::optional<FileOperation>& file_prompt() const { return file_prompt_; }
-    const std::optional<FileOperation>& cut_file() const { return cut_file_; }
+    const std::optional<FileOperation>& file_clipboard() const { return file_clipboard_; }
     // Only failures from the latest desktop action; notice also contains success/status text.
     const std::string& desktop_launch_error() const { return desktop_launch_error_; }
     std::string status,notice;
@@ -119,7 +119,7 @@ private:
     void file_action(UiAction action);
     void begin_file_operation(FileOperation operation);
     void process_file_result(FileOperationResult result);
-    void refresh_file_cache();
+    void refresh_file_cache(const FileOperationResult* operation=nullptr);
     std::int64_t now_=mock_now;
     std::unique_ptr<DirectoryLoader> loader_;
     std::optional<Surroundings> surroundings_;
@@ -144,7 +144,7 @@ private:
     std::map<std::size_t,Validation> validations_;
     DesktopLauncher launcher_;
     std::string desktop_launch_error_;
-    std::optional<FileOperation> file_prompt_,cut_file_;
+    std::optional<FileOperation> file_prompt_,file_clipboard_;
     bool file_busy_=false;
     std::size_t file_epoch_=0;
 };

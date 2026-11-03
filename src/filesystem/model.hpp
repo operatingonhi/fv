@@ -57,6 +57,7 @@ public:
     void clear_loading() { for (auto& state:states_) state.loading=false; }
     // Explicit user changes require fresh listings; retain IDs and layout anchors.
     void invalidate();
+    void erase(EntryId id);
     void apply(EntryId directory,DirectoryListing listing);
     // Copy cached metadata only; preserve destination identity and return ID mapping.
     EntryMap copy_subtree(EntryId source,Filesystem& destination,EntryId target) const;

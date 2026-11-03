@@ -139,30 +139,32 @@ failures. Normal Esc cancels transient state and does not quit.
 ## File operations
 
 Explicit file actions support one selected regular file, directory or symlink.
-Synthetic groups must be expanded to select a real member. Cut records the
+Synthetic groups must be expanded to select a real member. Copy and Cut record the
 source path and cached device/inode/change-time identity in an internal session
-clipboard; it does not alter the filesystem. Paste moves that entry into the current real
-directory. Ctrl+X/Ctrl+V, Ctrl+M and Delete mirror the sidebar controls and must
-not intercept editing shortcuts in text fields. Esc clears a pending cut or
-cancels a confirmation, without cancelling an operation already in progress.
+clipboard; they do not alter the filesystem. Paste duplicates a copied entry or
+moves a cut entry into the current real directory. Copy stays on the clipboard
+after successful paste for reuse. Ctrl+C/Ctrl+X/Ctrl+V, Ctrl+M and Delete mirror
+the sidebar controls and must not intercept editing shortcuts in text fields.
+Esc clears either clipboard mode or cancels a confirmation, without cancelling
+an operation already in progress.
 
 Move asks for an existing destination directory; names are retained. Delete asks
 for explicit confirmation of the captured source and permanently removes it,
 recursively for directories. There is no Trash or undo. Symlinks, including
-broken links, are moved/unlinked without traversing their targets. Root paths,
-special files, stale/replaced sources and directory-into-descendant moves are
-refused. Existing destination names, including dangling symlinks, are never
+broken links, are copied/moved/unlinked without traversing their targets. Root
+paths, special files, stale/replaced sources and directory-into-descendant
+transfers are refused. Existing destination names, including dangling symlinks, are never
 replaced; Linux renameat2 with RENAME_NOREPLACE enforces that at publication.
 
 The existing single filesystem worker performs mutations alongside reads and
-path validation. Cross-filesystem moves stage a private complete copy, verify
-that source metadata/tree membership has not changed, publish without replacement
-and only then remove the source. Copies preserve permissions, modification times
-and link target text; ownership, ACLs, extended attributes and hard-link topology
-are not preserved. Concurrent external writers remain a limit; this is not a
+path validation. Copies and cross-filesystem moves stage a private complete copy,
+verify that source metadata/tree membership has not changed and publish without
+replacement. Only moves remove the source afterward. Copies preserve permissions,
+modification times and link target text; ownership, ACLs, extended attributes
+and hard-link topology are not preserved. Concurrent external writers remain a limit; this is not a
 filesystem transaction. Copy failures retain the source. Partial deletion or
 source-removal failures report errors and identify any complete destination copy.
-Successful moves or deletion of the cut source clear the matching clipboard;
+Successful moves or deletion of a clipboard source clear the matching clipboard;
 failures retain it.
 
 Navigation actions wait while a mutation is running; camera rendering stays
@@ -173,6 +175,15 @@ the camera/grid frame. Active groups return to their real directory before
 regrouping. Explicit refreshes prune removed entries; ordinary preview/full-read
 disappearance still retains an error entry. No automatic filesystem watcher is
 introduced.
+
+Successful moves/deletes also remove their source from cached metadata and
+hierarchy items immediately, including enclosing scenes and stashed history
+worlds. Source matching uses the entry inode/name and parent inode so aliases
+are handled without removing a separate hard link in another directory.
+Hierarchy pruning preserves surviving containers and anchors; enclosing listings
+can still defer regrouping while a child is active. Ascent requests a fresh
+listing when its cached parent was invalidated. Source removal must be verified
+in generated scene geometry, not only in the current sidebar or on disk.
 
 ## Demonstration and recording
 

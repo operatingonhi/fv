@@ -144,6 +144,10 @@ void cross_filesystem(const fs::path& root) {
     fs::create_symlink("missing",root/"cross-link");
     result=perform_file_operation(operation(FileOperationKind::Move,root/"cross-link",destination.path));
     check(result.success && fs::read_symlink(destination.path/"cross-link")=="missing","A broken symlink can move across filesystems");
+    fs::create_directory(destination.path/"copies");
+    result=perform_file_operation(operation(FileOperationKind::Copy,root/"cross-file.txt",destination.path/"copies"));
+    check(result.success && read(root/"cross-file.txt")=="original" && read(destination.path/"copies"/"cross-file.txt")=="original",
+        "Cross-filesystem copy leaves the original intact");
     fs::create_directory(root/"readonly"); write(root/"readonly"/"data.txt");
     fs::permissions(root/"readonly",fs::perms::owner_read|fs::perms::owner_exec);
     result=perform_file_operation(operation(FileOperationKind::Move,root/"readonly",destination.path));
@@ -173,14 +177,14 @@ void browser_actions(const fs::path& root) {
     browser.act({ActionKind::ConfirmFileOperation}); settle(browser);
     check(fs::exists(source/"chosen.txt"),"Cancelled confirmation cannot perform a later delete");
     browser.act({ActionKind::Cut});
-    check(browser.cut_file().has_value() && fs::exists(source/"chosen.txt"),"Cut does not change disk contents");
+    check(browser.file_clipboard().has_value() && fs::exists(source/"chosen.txt"),"Cut does not change disk contents");
     browser.act({ActionKind::Navigate,0,target.string()}); settle(browser);
     browser.act({ActionKind::Paste});
     check(browser.file_busy(),"Paste submits work to the filesystem worker");
     browser.act({ActionKind::Back});
     check(fs::path(browser.filesystem.path(browser.navigation.context().directory))==target,"Navigation does not change the active operation's context");
     settle(browser);
-    check(!browser.cut_file() && fs::exists(target/"chosen.txt") && !fs::exists(source/"chosen.txt") && object(browser,"chosen.txt")!=no_selection,"Successful paste clears cut and refreshes the destination");
+    check(!browser.file_clipboard() && fs::exists(target/"chosen.txt") && !fs::exists(source/"chosen.txt") && object(browser,"chosen.txt")!=no_selection,"Successful paste clears cut and refreshes the destination");
     browser.act({ActionKind::Back}); settle(browser);
     check(object(browser,"chosen.txt")==no_selection && object(browser,"keep.cpp")!=no_selection,"History refreshes source worlds without ghost entries");
     select(browser,"keep.cpp");
@@ -193,11 +197,11 @@ void browser_actions(const fs::path& root) {
     const auto retained=browser.layout.objects[object(browser,"keep.cpp")].center;
     check(anchor.x==retained.x && anchor.z==retained.z,"Unchanged files retain their loaded anchors after a move");
     select(browser,"keep.cpp"); browser.act({ActionKind::Cut}); browser.act({ActionKind::Cancel});
-    check(!browser.cut_file() && fs::exists(source/"keep.cpp"),"Escape clears the internal cut clipboard without changing files");
+    check(!browser.file_clipboard() && fs::exists(source/"keep.cpp"),"Escape clears the internal cut clipboard without changing files");
     browser.act({ActionKind::DeleteFile}); browser.act({ActionKind::ConfirmFileOperation}); settle(browser);
     check(!fs::exists(source/"keep.cpp") && browser.layout.objects.empty(),"Confirmed delete refreshes an empty source directory");
-    Browser mock; mock.act({ActionKind::DeleteFile}); mock.act({ActionKind::Cut}); mock.act({ActionKind::Paste});
-    check(!mock.file_prompt() && !mock.cut_file() && !mock.file_busy(),"Mocks never mutate real files");
+    Browser mock; mock.act({ActionKind::DeleteFile}); mock.act({ActionKind::Cut}); mock.act({ActionKind::Copy}); mock.act({ActionKind::Paste});
+    check(!mock.file_prompt() && !mock.file_clipboard() && !mock.file_busy(),"Mocks never mutate real files");
 }
 void groups_and_retry(const fs::path& root) {
     const auto source=root/"groups", target=root/"occupied";
@@ -207,13 +211,13 @@ void groups_and_retry(const fs::path& root) {
     Browser browser(source); settle(browser);
     check(browser.layout.objects.size()==1 && browser.selected_item()->group==GroupKind::Series,"Fixture creates a conservative series");
     browser.act({ActionKind::Cut});
-    check(!browser.cut_file() && !browser.can_change_selection(),"Groups cannot be cut or deleted as synthetic files");
+    check(!browser.file_clipboard() && !browser.can_change_selection(),"Groups cannot be cut or deleted as synthetic files");
     browser.act({ActionKind::Open,0}); settle(browser); select(browser,"frame002.png");
     browser.act({ActionKind::Cut}); browser.act({ActionKind::Navigate,0,target.string()}); settle(browser);
     browser.act({ActionKind::Paste}); settle(browser);
-    check(browser.cut_file().has_value() && fs::exists(source/"frame002.png") && read(target/"frame002.png")=="keep destination" && !browser.notice.empty(),"Failed paste retains cut and exposes the collision");
+    check(browser.file_clipboard().has_value() && fs::exists(source/"frame002.png") && read(target/"frame002.png")=="keep destination" && !browser.notice.empty(),"Failed paste retains cut and exposes the collision");
     fs::remove(target/"frame002.png"); browser.act({ActionKind::Paste}); settle(browser);
-    check(!browser.cut_file() && !fs::exists(source/"frame002.png") && object(browser,"frame002.png")!=no_selection,"A failed paste can be retried after the collision is removed");
+    check(!browser.file_clipboard() && !fs::exists(source/"frame002.png") && object(browser,"frame002.png")!=no_selection,"A failed paste can be retried after the collision is removed");
     browser.act({ActionKind::Back}); settle(browser);
     check(!browser.navigation.context().group && object(browser,"frame002.png")==no_selection,"Returning to a stale group falls back to its refreshed real directory");
     select(browser,"frame001.png"); browser.act({ActionKind::DeleteFile});
@@ -251,12 +255,144 @@ void nested_mutations(const fs::path& root) {
     select(group,"part002.png"); group.act({ActionKind::DeleteFile}); group.act({ActionKind::ConfirmFileOperation}); settle(group);
     check(!group.navigation.context().group && object(group,"part002.png")==no_selection && fs::exists(grouped/"part001.png"),"Deleting a series member refreshes its real directory without detaching navigation");
 }
+void parent_child_moves(const fs::path& root) {
+    const auto parent=root/"parent-child-moves";
+    fs::create_directories(parent/"child");
+    fs::create_directory(parent/"sibling");
+    write(parent/"transfer.txt"); write(parent/"keep.cpp");
+    fs::create_hard_link(parent/"transfer.txt",parent/"sibling"/"transfer.txt");
+    Browser browser(parent); settle(browser);
+    select(browser,"transfer.txt");
+    const auto original=browser.layout.objects[browser.navigation.selected()];
+    browser.act({ActionKind::Cut});
+    browser.act({ActionKind::Open,object(browser,"child")}); settle(browser);
+    const auto child=browser.current_node();
+    const auto camera=browser.camera.state(); const auto grid=browser.scene.grid;
+    browser.act({ActionKind::Paste}); settle(browser);
+    check(!fs::exists(parent/"transfer.txt") && fs::exists(parent/"child"/"transfer.txt"),"Parent-to-child paste moves the real file");
+    const auto& parent_objects=browser.hierarchy.node(browser.hierarchy.node(child).parent).world.objects;
+    check(std::none_of(parent_objects.begin(),parent_objects.end(),[&](const auto& placement) {
+        return placement.item.members==original.item.members;
+    }),"Parent-to-child paste removes the old parent graphic while the child stays active");
+    check(std::none_of(browser.scene.boxes.begin(),browser.scene.boxes.end(),[&](const auto& box) {
+        return box.center==original.center;
+    }),"The rendered scene contains no geometry at the old parent file position");
+    check(browser.current_node()==child && browser.camera.state()==camera && browser.scene.grid==grid,
+        "Removing the parent graphic preserves the active child, camera and grid");
+    const auto parent_node=browser.hierarchy.node(child).parent;
+    const auto& parent_layout=browser.hierarchy.node(parent_node).world.objects;
+    const auto sibling=std::find_if(parent_layout.begin(),parent_layout.end(),[](const auto& object) { return object.item.label=="sibling"; });
+    check(sibling!=parent_layout.end(),"Unrelated sibling remains in its parent");
+    const auto sibling_node=browser.hierarchy.child(parent_node,static_cast<std::size_t>(sibling-parent_layout.begin()));
+    check(browser.hierarchy.node(sibling_node).world.objects.size()==1 && fs::exists(parent/"sibling"/"transfer.txt"),
+        "Removing a source leaves a same-named hard link in another directory visible");
+    select(browser,"transfer.txt");
+    const auto previous_child=browser.layout.objects[browser.navigation.selected()];
+    browser.act({ActionKind::Cut}); browser.act({ActionKind::Up}); settle(browser);
+    check(browser.filesystem.state(browser.navigation.context().directory).state==LoadState::Ready,
+        "Returning to a directory invalidated by a file action reloads it");
+    browser.act({ActionKind::Paste}); settle(browser);
+    check(fs::exists(parent/"transfer.txt") && !fs::exists(parent/"child"/"transfer.txt"),"Child-to-parent paste moves the real file");
+    const auto child_node=browser.hierarchy.child(browser.current_node(),object(browser,"child"));
+    check(browser.hierarchy.node(child_node).world.objects.empty(),"Child-to-parent paste empties the old child preview");
+    check(std::none_of(browser.scene.boxes.begin(),browser.scene.boxes.end(),[&](const auto& box) {
+        return box.center==previous_child.center;
+    }),"The rendered scene contains no geometry at the old child file position");
+    browser.act({ActionKind::Back}); settle(browser);
+    check(browser.layout.objects.empty(),"History does not restore the moved child's old graphic");
+    browser.act({ActionKind::Forward}); settle(browser);
+    check(object(browser,"transfer.txt")!=no_selection,"Forward history keeps the moved parent's new graphic");
+}
+void copies(const fs::path& root) {
+    const auto source=root/"copy-source", target=root/"copy-target";
+    fs::create_directories(source/"tree"/"nested"); fs::create_directory(target);
+    write(source/"file.txt","copy contents"); write(source/"tree"/"nested"/"data.cpp");
+    fs::create_symlink("nested/data.cpp",source/"tree"/"relative");
+    fs::create_symlink("absent",source/"tree"/"broken");
+    fs::create_directory_symlink(".",source/"tree"/"cycle");
+    auto result=perform_file_operation(operation(FileOperationKind::Copy,source/"file.txt",target));
+    check(result.success && read(source/"file.txt")=="copy contents" && read(target/"file.txt")=="copy contents",
+        "Copy creates a new file while retaining the source");
+    write(target/"file.txt","independent copy");
+    check(read(source/"file.txt")=="copy contents","Modifying a copy does not alter the original");
+    result=perform_file_operation(operation(FileOperationKind::Copy,source/"file.txt",target));
+    check(!result.success && read(target/"file.txt")=="independent copy" && read(source/"file.txt")=="copy contents",
+        "Copy refuses an existing name without altering either file");
+    result=perform_file_operation(operation(FileOperationKind::Copy,source/"tree",target));
+    check(result.success && fs::exists(source/"tree"/"nested"/"data.cpp") && read(target/"tree"/"nested"/"data.cpp")=="contents",
+        "Recursive copy retains source contents");
+    check(fs::read_symlink(target/"tree"/"relative")=="nested/data.cpp" && fs::read_symlink(target/"tree"/"broken")=="absent" &&
+        fs::is_symlink(fs::symlink_status(target/"tree"/"cycle")),"Directory copies preserve relative, broken and cyclic links without following them");
+    fs::create_directory(target/"readonly-copies");
+    fs::permissions(source/"tree",fs::perms::owner_read|fs::perms::owner_exec);
+    result=perform_file_operation(operation(FileOperationKind::Copy,source/"tree",target/"readonly-copies"));
+    check(result.success && read(target/"readonly-copies"/"tree"/"nested"/"data.cpp")=="contents" &&
+        (fs::status(target/"readonly-copies"/"tree").permissions()&fs::perms::owner_write)==fs::perms::none,
+        "Read-only directories can be copied with their permissions retained");
+    fs::permissions(source/"tree",fs::perms::owner_all);
+    result=perform_file_operation(operation(FileOperationKind::Copy,source/"tree",source/"tree"/"nested"));
+    check(!result.success && !fs::exists(source/"tree"/"nested"/"tree"),"Copy refuses directory-into-descendant recursion");
+    result=perform_file_operation(operation(FileOperationKind::Copy,source/"tree"/"broken",target));
+    check(result.success && fs::is_symlink(fs::symlink_status(source/"tree"/"broken")) && fs::is_symlink(fs::symlink_status(target/"broken")),
+        "Copying a symlink copies the link itself");
+    for (const auto& entry:fs::directory_iterator(target))
+        check(!entry.path().filename().string().starts_with(".fv-move-"),"Copies leave no staging directories behind");
+}
+void copy_clipboard(const fs::path& root) {
+    const auto parent=root/"copy-clipboard";
+    fs::create_directories(parent/"first"); fs::create_directory(parent/"second");
+    write(parent/"original.txt","clipboard source");
+    Browser browser(parent); settle(browser); select(browser,"original.txt");
+    const auto original=browser.layout.objects[browser.navigation.selected()];
+    browser.act({ActionKind::Copy});
+    check(browser.file_clipboard() && browser.file_clipboard()->kind==FileOperationKind::Copy && fs::exists(parent/"original.txt"),
+        "Copy records a clipboard source without changing disk");
+    browser.act({ActionKind::Open,object(browser,"first")}); settle(browser); browser.act({ActionKind::Paste}); settle(browser);
+    check(browser.file_clipboard() && browser.file_clipboard()->kind==FileOperationKind::Copy && object(browser,"original.txt")!=no_selection &&
+        read(parent/"original.txt")=="clipboard source" && read(parent/"first"/"original.txt")=="clipboard source",
+        "Copy-paste preserves its source and keeps the clipboard for reuse");
+    const auto parent_node=browser.hierarchy.node(browser.current_node()).parent;
+    const auto& objects=browser.hierarchy.node(parent_node).world.objects;
+    check(std::any_of(objects.begin(),objects.end(),[&](const auto& placement) { return placement.item.members==original.item.members; }),
+        "Copying into a child preserves the original parent's graphic");
+    write(parent/"first"/"original.txt","keep existing destination");
+    browser.act({ActionKind::Paste}); settle(browser);
+    check(browser.file_clipboard().has_value() && read(parent/"first"/"original.txt")=="keep existing destination",
+        "Copy-paste collision keeps its clipboard and does not replace the existing file");
+    browser.act({ActionKind::Up}); settle(browser); browser.act({ActionKind::Open,object(browser,"second")}); settle(browser);
+    browser.act({ActionKind::Paste}); settle(browser);
+    check(read(parent/"second"/"original.txt")=="clipboard source" && browser.file_clipboard().has_value(),"One copy can be pasted into multiple destinations");
+    select(browser,"original.txt"); browser.act({ActionKind::Cut});
+    check(browser.file_clipboard()->kind==FileOperationKind::Move,"Cut replaces a copy clipboard");
+    browser.act({ActionKind::Copy}); check(browser.file_clipboard()->kind==FileOperationKind::Copy,"Copy replaces a cut clipboard");
+    browser.act({ActionKind::Cancel}); check(!browser.file_clipboard(),"Escape clears a copy clipboard");
+}
+void rebased_transfers(const fs::path& root) {
+    std::vector<fs::path> paths{root/"rebased-transfers"}; fs::create_directory(paths.front());
+    for (int i=0;i<6;++i) { paths.push_back(paths.back()/"next"); fs::create_directory(paths.back()); }
+    for (const auto depth:{2u,3u,5u}) {
+        const auto name="transfer-"+std::to_string(depth)+".txt"; write(paths[depth]/name);
+        Browser browser(paths.front()); settle(browser);
+        for (unsigned level=0;level<depth;++level) { browser.act({ActionKind::Open,object(browser,"next")}); settle(browser); }
+        select(browser,name); browser.act({ActionKind::Cut}); browser.act({ActionKind::Open,object(browser,"next")}); settle(browser);
+        browser.act({ActionKind::Paste}); settle(browser);
+        check(fs::exists(paths[depth+1]/name) && !fs::exists(paths[depth]/name),"Parent-to-child move crosses deep cached/rebased worlds");
+        select(browser,name); browser.act({ActionKind::Cut}); browser.act({ActionKind::Up}); settle(browser);
+        check(object(browser,name)==no_selection,"Rebased parent return does not resurrect the original source graphic");
+        browser.act({ActionKind::Paste}); settle(browser);
+        const auto child=browser.hierarchy.child(browser.current_node(),object(browser,"next"));
+        const auto& objects=browser.hierarchy.node(child).world.objects;
+        check(object(browser,name)!=no_selection && std::none_of(objects.begin(),objects.end(),[&](const auto& object) { return object.item.label==name; }),
+            "Reverse paste removes the old child graphic across rebase boundaries");
+    }
+}
 }
 int main() {
     try {
         Temporary temporary;
         filesystem_actions(temporary.path); cross_filesystem(temporary.path);
-        browser_actions(temporary.path); groups_and_retry(temporary.path); worker_queue(temporary.path); nested_mutations(temporary.path);
+        browser_actions(temporary.path); groups_and_retry(temporary.path); worker_queue(temporary.path); nested_mutations(temporary.path); parent_child_moves(temporary.path);
+        copies(temporary.path); copy_clipboard(temporary.path); rebased_transfers(temporary.path);
         std::cout<<"Filesystem operations and browser confirmations/clipboard/cache tests passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

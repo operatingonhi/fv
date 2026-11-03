@@ -3,6 +3,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <span>
 #include <unordered_map>
 
 namespace spatial {
@@ -36,6 +37,8 @@ public:
     void initialize(std::vector<DirectoryItems> directories,std::vector<Item> individuals);
     const LayoutNode& node(NodeId id) const { return nodes_.at(id); }
     void upsert_directory(DirectoryItems directory,std::vector<Item> individuals);
+    // Remove confirmed entries without regrouping/reparenting surviving containers.
+    void erase_entries(std::span<const EntryId> entries);
     NodeId child(NodeId id,std::size_t index) const;
     void ensure_preview(NodeId id,unsigned depth);
     void set_page(NodeId id,std::size_t page);

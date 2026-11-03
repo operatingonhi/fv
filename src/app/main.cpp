@@ -175,8 +175,10 @@ int main(int argc,char** argv) {
                     const bool ctrl=(event.key.keysym.mod&KMOD_CTRL)!=0, alt=(event.key.keysym.mod&KMOD_ALT)!=0;
                     const bool shift=(event.key.keysym.mod&KMOD_SHIFT)!=0;
                     if (!event.key.repeat && ctrl && !io.WantTextInput && !overlay_state.capture_navigation &&
-                        (key==SDLK_x || key==SDLK_v || key==SDLK_m)) {
-                        act({key==SDLK_x ? spatial::ActionKind::Cut:key==SDLK_v ? spatial::ActionKind::Paste:spatial::ActionKind::MoveFile}); consumed=true;
+                        (key==SDLK_c || key==SDLK_x || key==SDLK_v || key==SDLK_m)) {
+                        const auto action=key==SDLK_c ? spatial::ActionKind::Copy:key==SDLK_x ? spatial::ActionKind::Cut:
+                            key==SDLK_v ? spatial::ActionKind::Paste:spatial::ActionKind::MoveFile;
+                        act({action}); consumed=true;
                     } else if (!event.key.repeat && ctrl && key==SDLK_l) { overlay_state.focus_path=true; consumed=true; }
                     else if (!event.key.repeat && ctrl && key==SDLK_f) {
                         if (shift) overlay_state.open_filters=true; else overlay_state.focus_search=true;

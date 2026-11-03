@@ -28,14 +28,16 @@ Stamp stamp(const fs::path& path) {
     if (::lstat(path.c_str(),&info)!=0) throw fs::filesystem_error("Read source",path,std::error_code(errno,std::generic_category()));
     return {info.st_dev,info.st_ino,static_cast<std::uintmax_t>(info.st_size),info.st_mode,info.st_mtim,info.st_ctim};
 }
+FileIdentity identity(const Stamp& info) {
+    return {info.device,info.inode,true,info.changed.tv_sec,info.changed.tv_nsec};
+}
 bool within(const fs::path& path,const fs::path& parent) {
     const auto [a,b]=std::mismatch(parent.begin(),parent.end(),path.begin(),path.end());
     (void)b; return a==parent.end();
 }
 void check_source(const fs::path& source,FileIdentity expected) {
     const auto info=stamp(source);
-    const FileIdentity current{info.device,info.inode,true,info.changed.tv_sec,info.changed.tv_nsec};
-    if (!expected.known || current!=expected)
+    if (!expected.known || identity(info)!=expected)
         throw std::runtime_error("Source changed, was replaced or has no verified identity; reselect it and try again");
     if (!S_ISREG(info.mode) && !S_ISDIR(info.mode) && !S_ISLNK(info.mode))
         throw std::runtime_error("Only regular files, directories and symlinks can be changed");
@@ -48,10 +50,10 @@ using Snapshot=std::map<fs::path,Stamp>;
 Snapshot snapshot(const fs::path& source,std::stop_token stop) {
     Snapshot result;
     const auto add=[&](const fs::path& path) {
-        if (stop.stop_requested()) throw std::runtime_error("Move cancelled before source removal");
+        if (stop.stop_requested()) throw std::runtime_error("File transfer cancelled before publication");
         const auto value=stamp(path);
         if (!S_ISREG(value.mode) && !S_ISDIR(value.mode) && !S_ISLNK(value.mode))
-            throw std::runtime_error("Cross-filesystem moves cannot copy special files");
+            throw std::runtime_error("File transfers cannot copy special files");
         result.emplace(path,value);
     };
     add(source);
@@ -61,7 +63,7 @@ Snapshot snapshot(const fs::path& source,std::stop_token stop) {
 }
 void copy_snapshot(const fs::path& source,const fs::path& destination,const Snapshot& entries,std::stop_token stop) {
     for (const auto& [path,value]:entries) {
-        if (stop.stop_requested()) throw std::runtime_error("Move cancelled before source removal");
+        if (stop.stop_requested()) throw std::runtime_error("File transfer cancelled before publication");
         const auto relative=path.lexically_relative(source);
         const auto target=relative=="." ? destination:destination/relative;
         if (S_ISDIR(value.mode)) {
@@ -87,7 +89,7 @@ struct Staging {
     fs::path path;
     explicit Staging(const fs::path& parent) {
         auto pattern=(parent/".fv-move-XXXXXX").string();
-        if (!::mkdtemp(pattern.data())) throw fs::filesystem_error("Create move staging directory",parent,std::error_code(errno,std::generic_category()));
+        if (!::mkdtemp(pattern.data())) throw fs::filesystem_error("Create transfer staging directory",parent,std::error_code(errno,std::generic_category()));
         path=std::move(pattern);
     }
     ~Staging() {
@@ -119,6 +121,7 @@ FileOperationResult perform_file_operation(FileOperation operation,std::stop_tok
             throw std::runtime_error("Select an individual filesystem entry, not a filesystem root");
         const auto source=fs::canonical(request.source.parent_path())/name;
         check_source(source,request.expected);
+        result.source_parent=identity(stamp(source.parent_path()));
         if (stop.stop_requested()) throw std::runtime_error("File operation cancelled before starting");
         if (request.kind==FileOperationKind::Delete) {
             std::error_code error;
@@ -133,11 +136,13 @@ FileOperationResult perform_file_operation(FileOperation operation,std::stop_tok
         result.destination=directory/name;
         if (source==result.destination) throw std::runtime_error("Source is already in the destination directory");
         if (S_ISDIR(stamp(source).mode) && within(directory,source))
-            throw std::runtime_error("A directory cannot be moved into itself or its descendants");
+            throw std::runtime_error("A directory cannot be copied or moved into itself or its descendants");
         check_source(source,request.expected);
-        const int error=move_exclusive(source,result.destination);
-        if (!error) { result.success=result.changed=true; return result; }
-        if (error!=EXDEV) throw fs::filesystem_error("Move (existing destinations are never replaced)",source,result.destination,std::error_code(error,std::generic_category()));
+        if (request.kind==FileOperationKind::Move) {
+            const int error=move_exclusive(source,result.destination);
+            if (!error) { result.success=result.changed=true; return result; }
+            if (error!=EXDEV) throw fs::filesystem_error("Move (existing destinations are never replaced)",source,result.destination,std::error_code(error,std::generic_category()));
+        }
         if (fs::exists(fs::symlink_status(result.destination)))
             throw fs::filesystem_error("Destination already exists",result.destination,std::make_error_code(std::errc::file_exists));
         // Keep all copy work private until it is complete. A failed copy leaves
@@ -148,10 +153,11 @@ FileOperationResult perform_file_operation(FileOperation operation,std::stop_tok
         copy_snapshot(source,copy,contents,stop);
         if (snapshot(source,stop)!=contents) throw std::runtime_error("Source changed while copying; source was retained");
         const int publish_error=move_exclusive(copy,result.destination);
-        if (publish_error) throw fs::filesystem_error("Publish move (existing destinations are never replaced)",result.destination,std::error_code(publish_error,std::generic_category()));
+        if (publish_error) throw fs::filesystem_error("Publish transfer (existing destinations are never replaced)",result.destination,std::error_code(publish_error,std::generic_category()));
         result.changed=true;
         if (S_ISDIR(contents.at(source).mode))
             fs::permissions(result.destination,static_cast<fs::perms>(contents.at(source).mode&07777));
+        if (request.kind==FileOperationKind::Copy) { result.success=true; return result; }
         check_source(source,request.expected);
         std::error_code removal_error;
         fs::remove_all(source,removal_error);
@@ -159,7 +165,7 @@ FileOperationResult perform_file_operation(FileOperation operation,std::stop_tok
         result.success=true;
     } catch (const std::exception& error) {
         result.error=error.what();
-        if (result.changed && result.operation.kind==FileOperationKind::Move)
+        if (result.changed && result.operation.kind!=FileOperationKind::Delete)
             result.error+=". A complete copy is at "+result.destination.string()+"; check the source before retrying.";
     }
     return result;
