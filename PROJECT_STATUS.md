@@ -1,6 +1,6 @@
 # Current handoff
 
-Updated 2026-11-02. Read this with README.md, DESIGN.md and AGENTS.md.
+Updated 2026-11-03. Read this with README.md, DESIGN.md and AGENTS.md.
 Source/tests and current Git state remain authoritative.
 
 ## GitHub publication
@@ -13,7 +13,7 @@ SSH authentication, fetch and push succeeded after the user corrected the key.
   Merge commit `2d17172` joins that history with the local project history.
   LICENSE is byte-for-byte identical to the original GitHub file.
 - Local implementation commits and the original remote commit are retained;
-  no force-push was used. Inspect `git log -1` for the current documentation tip.
+  no force-push was used. Inspect `git log -1` for the current tip.
 - Dear ImGui remains a pinned Git submodule at
   `4e99c0ab1a28c2b3d1f250ec0266dbf1e455ef58`; build directories and Python caches
   remain ignored.
@@ -57,6 +57,32 @@ split across filesystem, analysis, layout, graphics, navigation, UI and app.
   not quit normal browsing. Settings are session-only; there is no label-density
   setting, automatic refresh, persistent theme or filesystem-wide search index.
 
+## File operations
+
+Move (Ctrl+M), cut (Ctrl+X), paste (Ctrl+V) and delete (Delete key) are available
+through shared browser actions and sidebar controls. Actions operate on one real
+selected file/directory/symlink; groups must be expanded. Cut is an internal
+session clipboard. Move asks for an existing destination directory. Delete
+requires confirmation, is permanent and recursively removes directory contents;
+there is no Trash or undo. Esc cancels a confirmation or pending cut.
+
+The existing filesystem worker performs I/O. Move refuses occupied destination
+names atomically, handles cross-filesystem copies through private staging and
+source verification, and does not follow source symlinks. The worker checks
+cached device/inode/change-time identity before mutation. In-progress actions
+hold navigation until the result; rendering remains active. Failed paste retains
+its cut source.
+Results invalidate old reads/history caches, prune removed entries on explicit
+refresh and retain surviving anchors. Group mutation returns to the real
+directory before regrouping; ordinary loading retains disappearance errors.
+
+Cross-filesystem copies preserve permissions, modification times and symlink
+text, but not ownership, ACLs, extended attributes or hard-link relationships.
+Concurrent external changes cannot be made transactional. Permission errors may
+leave partial deletion or a completed destination with source contents remaining;
+these are reported as failures, never as successful moves. No multi-selection,
+system file clipboard, copy action, automatic watcher or undo was added.
+
 ## Tour and recording preferences
 
 The current tour in `src/app/demo.cpp` has 55 actions, 31 numbered descriptions,
@@ -82,21 +108,28 @@ be fresh. No supplemental programs may be downloaded/installed by the agent.
 
 ## Validation and remaining limits
 
-Validation for the fv rename: Debug and Release builds passed all nine CTest
-suites; all eight Python recorder checks passed. Both executables report `fv`
-in `--help`. Regenerated narration matches both builds byte for byte. Eleven
-local Markdown links and `git diff --check` passed; old application names are
-absent from project source/docs. Coverage includes forty-level navigation/rebasing,
+File-operation validation: Debug and Release builds pass all ten CTest suites;
+all eight Python recorder checks pass. The new suite uses disposable files and
+tests real cross-filesystem moves between /tmp and the workspace, collisions,
+symlinks, permissions/partial source removal, stale source identities, confirmation
+cancellation, cut/paste retry, stable anchors, group updates and deep cached
+parent returns. Generated narration matches both builds byte for byte. Local
+Markdown links and `git diff --check` passed. Existing coverage includes
+forty-level navigation/rebasing,
 stable anchors, bounded large directories, grouping, inscriptions, reversible
 grid fades, full four-level tour, harmless launch success/failure, square capture
 offsets and refusal of a WM size override. Stress tests use 14,719 cached entries.
-These are CPU/process/mocked-capture checks, not GUI/video acceptance.
+These are CPU/process/mocked-capture checks. A native X11/OpenGL smoke test also
+passed and its captured sidebar was visually inspected for the new controls.
+The move/delete dialogs and keyboard flows have not been driven interactively
+on X11; confirmation/clipboard behavior is covered through browser-action tests.
 
 The user has run recording locally and reported the terminal opened/closed.
 The latest i3/square capture and final video have not been visually verified by
-this agent. OpenSSH is installed and GitHub access works. Availability of
-FFmpeg/FFprobe, `urxvt`, Xvfb and a working native X11 display has not been
-rechecked in the rebuilt container; verify these before recording or GUI tests.
+this agent. OpenSSH is installed and GitHub access works; native X11/OpenGL
+startup, rendering and shutdown passed the smoke test. Xvfb is absent; availability
+of FFmpeg/FFprobe and `urxvt` has not been rechecked. Verify recording prerequisites
+before making another video.
 
 Remaining implementation limits: main-thread analysis after asynchronous reads
 can pause on huge listings; caches retain memory; no automatic refresh/watchers,

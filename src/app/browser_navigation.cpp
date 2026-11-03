@@ -84,6 +84,7 @@ void Browser::restore_view(std::size_t state) {
     if (complete) camera.restore(view.camera,animations && same_world);
     else { focus_overview(); notice="History group changed; restored the nearest available context"; }
     request_directory(navigation.context().directory,true,true); schedule_previews(); request_surroundings();
+    if (loader_ && world_->file_epoch!=file_epoch_) refresh_file_cache();
 }
 void Browser::validate(const std::filesystem::path& path,Validation action,bool directory_only) {
     if (!loader_) return;
@@ -152,7 +153,7 @@ void Browser::open_location(const std::filesystem::path& path) {
             if (enter_existing(node)) return;
         }
     }
-    save_view(); stash_world(); world_=std::make_shared<World>(); grid_={};
+    save_view(); stash_world(); world_=std::make_shared<World>(); world_->file_epoch=file_epoch_; grid_={};
     filesystem=Filesystem(path.string()); navigation=Navigation{}; hierarchy=Hierarchy{};
     current_=0; parents_.clear(); query_.text.clear();
     world_path_=path;

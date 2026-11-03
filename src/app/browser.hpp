@@ -19,7 +19,7 @@ public:
     explicit Browser(const std::filesystem::path& start);
     bool real_filesystem() const { return loader_!=nullptr; }
     std::int64_t now() const { return now_; }
-    bool loading() const { return pending_parent_ || !pending_.empty() || !validations_.empty() || (surroundings_ && !surroundings_->pending.empty()); }
+    bool loading() const { return file_busy_ || pending_parent_ || !pending_.empty() || !validations_.empty() || (surroundings_ && !surroundings_->pending.empty()); }
     // Parent backdrop of this cached world (deeper ancestors are in hierarchy).
     std::optional<std::filesystem::path> surrounding_directory() const;
     const QuerySpec& query() const { return query_; }
@@ -27,6 +27,10 @@ public:
     bool search_incomplete() const { return query_result_.incomplete; }
     bool eligible(const Item& item) const { return !query_.active() || item_matches(item,query_result_); }
     const Item* selected_item() const;
+    bool can_change_selection() const;
+    bool file_busy() const { return file_busy_; }
+    const std::optional<FileOperation>& file_prompt() const { return file_prompt_; }
+    const std::optional<FileOperation>& cut_file() const { return cut_file_; }
     // Only failures from the latest desktop action; notice also contains success/status text.
     const std::string& desktop_launch_error() const { return desktop_launch_error_; }
     std::string status,notice;
@@ -62,6 +66,7 @@ private:
     };
     struct ParentReturn { std::size_t state; EntryId directory; LocalTransform frame; };
     struct World {
+        std::size_t file_epoch=0;
         GridFrame grid;
         std::optional<Filesystem> filesystem;
         std::optional<Hierarchy> hierarchy;
@@ -111,6 +116,10 @@ private:
     void navigate(std::string text);
     void go_history(int delta);
     void terminal_here();
+    void file_action(UiAction action);
+    void begin_file_operation(FileOperation operation);
+    void process_file_result(FileOperationResult result);
+    void refresh_file_cache();
     std::int64_t now_=mock_now;
     std::unique_ptr<DirectoryLoader> loader_;
     std::optional<Surroundings> surroundings_;
@@ -135,5 +144,8 @@ private:
     std::map<std::size_t,Validation> validations_;
     DesktopLauncher launcher_;
     std::string desktop_launch_error_;
+    std::optional<FileOperation> file_prompt_,cut_file_;
+    bool file_busy_=false;
+    std::size_t file_epoch_=0;
 };
 }

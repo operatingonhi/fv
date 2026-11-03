@@ -174,7 +174,10 @@ int main(int argc,char** argv) {
                     const auto key=event.key.keysym.sym;
                     const bool ctrl=(event.key.keysym.mod&KMOD_CTRL)!=0, alt=(event.key.keysym.mod&KMOD_ALT)!=0;
                     const bool shift=(event.key.keysym.mod&KMOD_SHIFT)!=0;
-                    if (!event.key.repeat && ctrl && key==SDLK_l) { overlay_state.focus_path=true; consumed=true; }
+                    if (!event.key.repeat && ctrl && !io.WantTextInput && !overlay_state.capture_navigation &&
+                        (key==SDLK_x || key==SDLK_v || key==SDLK_m)) {
+                        act({key==SDLK_x ? spatial::ActionKind::Cut:key==SDLK_v ? spatial::ActionKind::Paste:spatial::ActionKind::MoveFile}); consumed=true;
+                    } else if (!event.key.repeat && ctrl && key==SDLK_l) { overlay_state.focus_path=true; consumed=true; }
                     else if (!event.key.repeat && ctrl && key==SDLK_f) {
                         if (shift) overlay_state.open_filters=true; else overlay_state.focus_search=true;
                         consumed=true;
@@ -204,6 +207,7 @@ int main(int argc,char** argv) {
                             case SDLK_f: act({spatial::ActionKind::Focus,browser.navigation.selected()}); break;
                             case SDLK_RETURN: act({spatial::ActionKind::Open,browser.navigation.selected()}); break;
                             case SDLK_BACKSPACE: act({spatial::ActionKind::Up}); break;
+                            case SDLK_DELETE: act({spatial::ActionKind::DeleteFile}); break;
                             case SDLK_PAGEUP: act({spatial::ActionKind::PreviousPage}); break;
                             case SDLK_PAGEDOWN: act({spatial::ActionKind::NextPage}); break;
                             case SDLK_HOME:

@@ -70,6 +70,54 @@ void inspector(const Browser& browser) {
     if (entry.kind==EntryKind::Directory && !browser.filesystem.state(entry.id).message.empty())
         ImGui::TextWrapped("%s",browser.filesystem.state(entry.id).message.c_str());
 }
+void file_controls(const Browser& browser,OverlayState& state,UiAction& action) {
+    ImGui::BeginDisabled(!browser.can_change_selection());
+    if (ImGui::Button("Cut")) action={ActionKind::Cut};
+    ImGui::EndDisabled(); ImGui::SameLine();
+    ImGui::BeginDisabled(!browser.cut_file() || browser.file_busy());
+    if (ImGui::Button("Paste")) action={ActionKind::Paste};
+    ImGui::EndDisabled(); ImGui::SameLine();
+    ImGui::BeginDisabled(!browser.can_change_selection());
+    if (ImGui::Button("Move...")) action={ActionKind::MoveFile};
+    ImGui::SameLine(); if (ImGui::Button("Delete...")) action={ActionKind::DeleteFile};
+    ImGui::EndDisabled();
+    if (browser.cut_file()) ImGui::TextWrapped("Cut: %s",browser.cut_file()->source.string().c_str());
+    if (browser.file_busy()) ImGui::TextUnformatted("File operation in progress...");
+    const auto& prompt=browser.file_prompt();
+    if (prompt && !ImGui::IsPopupOpen("File action")) {
+        state.file_destination=prompt->destination_directory.string();
+        ImGui::OpenPopup("File action");
+    }
+    ImGui::SetNextWindowSize({std::min(580.0f,ImGui::GetIO().DisplaySize.x-32),0},ImGuiCond_Appearing);
+    bool open=bool(prompt);
+    if (ImGui::BeginPopupModal("File action",&open,ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (!prompt || state.cancel_edits) {
+            action={ActionKind::CancelFileOperation}; ImGui::CloseCurrentPopup();
+        } else {
+            const bool deleting=prompt->kind==FileOperationKind::Delete;
+            ImGui::TextUnformatted(deleting ? "Permanently delete this entry?":"Move this entry");
+            ImGui::TextWrapped("%s",prompt->source.string().c_str());
+            if (deleting) {
+                ImGui::TextWrapped("Directories and their contents will be permanently deleted. This does not use Trash and cannot be undone. Symlink targets are left alone.");
+            } else {
+                ImGui::TextUnformatted("Destination directory (absolute, relative or ~/path):");
+                ImGui::SetNextItemWidth(-1);
+                ImGui::InputText("##destination",&state.file_destination);
+                ImGui::TextWrapped("The entry keeps its name. Existing destination names are never replaced.");
+            }
+            if (!browser.notice.empty()) ImGui::TextWrapped("%s",browser.notice.c_str());
+            // Cancellation gets the default keyboard focus, so opening the
+            // dialog cannot turn a repeated Enter key into a deletion.
+            if (ImGui::Button("Cancel")) { action={ActionKind::CancelFileOperation}; ImGui::CloseCurrentPopup(); }
+            ImGui::SetItemDefaultFocus(); ImGui::SameLine();
+            if (ImGui::Button(deleting ? "Delete permanently":"Move")) {
+                action={ActionKind::ConfirmFileOperation,0,state.file_destination};
+            }
+        }
+        ImGui::EndPopup();
+    }
+    if (!open && prompt) action={ActionKind::CancelFileOperation};
+}
 }
 UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     const auto& fs=browser.filesystem; const auto& nav=browser.navigation; const auto& layout=browser.layout;
@@ -134,7 +182,7 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     // Reserve space in the same sidebar for the summary, controls and optional
     // inspector. Both lists scroll independently; no floating window is needed.
     const auto detail_height=state.inspector ? 200.0f:0.0f;
-    const auto height=std::max(70.0f,ImGui::GetContentRegionAvail().y-180-detail_height);
+    const auto height=std::max(70.0f,ImGui::GetContentRegionAvail().y-240-detail_height);
     if (ImGui::BeginChild("Objects",{0,height},ImGuiChildFlags_Borders)) {
         for (std::size_t i=0;i<layout.objects.size();++i) {
             const auto& item=layout.objects[i].item;
@@ -157,6 +205,7 @@ UiAction overlay(Browser& browser,OverlayState& state,float panel_width) {
     ImGui::EndChild();
     ImGui::Separator();
     selection_summary(browser);
+    file_controls(browser,state,action);
     if (ImGui::Button(state.inspector ? "Less detail":"Inspect")) state.inspector=!state.inspector;
     ImGui::SameLine(); if (ImGui::Button("Terminal here")) action={ActionKind::Terminal};
     if (ImGui::Button("Activate (Enter)")) action={ActionKind::Open,nav.selected()};

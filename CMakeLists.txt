@@ -24,10 +24,10 @@ target_compile_features(camera PUBLIC cxx_std_20)
 target_compile_options(camera PRIVATE -Wall -Wextra -Wpedantic)
 
 add_library(browser STATIC
-    src/filesystem/model.cpp src/filesystem/reader.cpp src/filesystem/mock_filesystem.cpp src/analysis/analysis.cpp src/analysis/query.cpp
+    src/filesystem/model.cpp src/filesystem/reader.cpp src/filesystem/operations.cpp src/filesystem/mock_filesystem.cpp src/analysis/analysis.cpp src/analysis/query.cpp
     src/layout/layout.cpp src/layout/hierarchy.cpp src/navigation/navigation.cpp
     src/navigation/spatial_selection.cpp src/navigation/path.cpp src/navigation/history.cpp
-    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp src/app/browser_navigation.cpp src/app/browser_surroundings.cpp src/app/browser_rebase.cpp src/app/desktop.cpp src/app/demo.cpp)
+    src/graphics/picking.cpp src/ui/presentation.cpp src/app/browser.cpp src/app/browser_files.cpp src/app/browser_navigation.cpp src/app/browser_surroundings.cpp src/app/browser_rebase.cpp src/app/desktop.cpp src/app/demo.cpp)
 target_link_libraries(browser PUBLIC camera Threads::Threads)
 target_compile_options(browser PRIVATE -Wall -Wextra -Wpedantic)
 
@@ -39,6 +39,11 @@ target_link_libraries(fv PRIVATE browser imgui OpenGL::GL)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(file-operation-tests tests/file_operation_tests.cpp)
+    target_link_libraries(file-operation-tests PRIVATE browser)
+    target_compile_options(file-operation-tests PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME file-operations COMMAND file-operation-tests)
+    set_tests_properties(file-operations PROPERTIES TIMEOUT 60)
     add_executable(demo-tests tests/demo_tests.cpp)
     target_link_libraries(demo-tests PRIVATE browser)
     target_compile_options(demo-tests PRIVATE -Wall -Wextra -Wpedantic)

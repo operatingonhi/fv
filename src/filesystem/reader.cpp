@@ -1,6 +1,7 @@
 #include "filesystem/reader.hpp"
 #include <algorithm>
 #include <chrono>
+#include <sys/stat.h>
 
 namespace spatial {
 namespace fs=std::filesystem;
@@ -20,6 +21,9 @@ Entry read_metadata(const fs::path& path) {
         error(result,"status",ec ? ec:std::make_error_code(std::errc::no_such_file_or_directory));
         return result;
     }
+    struct stat identity{};
+    if (::lstat(path.c_str(),&identity)==0)
+        result.identity={identity.st_dev,identity.st_ino,true,identity.st_ctim.tv_sec,identity.st_ctim.tv_nsec};
     result.permissions=status.permissions();
     if (fs::is_symlink(status)) {
         result.kind=EntryKind::Symlink;
@@ -93,7 +97,7 @@ DirectoryLoader::DirectoryLoader():worker_([this](std::stop_token stop) { run(st
 DirectoryLoader::~DirectoryLoader() { worker_.request_stop(); wake_.notify_all(); }
 void DirectoryLoader::request(EntryId directory,fs::path path,std::size_t limit,std::size_t generation,std::size_t scope) {
     std::lock_guard lock(mutex_);
-    for (auto it=requests_.begin();it!=requests_.end();++it) if (!it->validation && it->directory==directory && it->generation==generation && it->scope==scope) {
+    for (auto it=requests_.begin();it!=requests_.end();++it) if (!it->validation && !it->operation && it->directory==directory && it->generation==generation && it->scope==scope) {
         if (limit==0) {
             auto request=std::move(*it); request.limit=0;
             requests_.erase(it); requests_.push_front(std::move(request)); wake_.notify_one();
@@ -115,9 +119,18 @@ std::vector<PathValidation> DirectoryLoader::poll_validations() {
     std::lock_guard lock(mutex_);
     std::vector<PathValidation> result; result.swap(validations_); return result;
 }
+void DirectoryLoader::operate(FileOperation operation) {
+    std::lock_guard lock(mutex_);
+    Request request; request.operation=std::move(operation);
+    requests_.push_front(std::move(request)); wake_.notify_one();
+}
+std::vector<FileOperationResult> DirectoryLoader::poll_operations() {
+    std::lock_guard lock(mutex_);
+    std::vector<FileOperationResult> result; result.swap(operations_); return result;
+}
 void DirectoryLoader::discard_reads_except(std::size_t generation) {
     std::lock_guard lock(mutex_);
-    std::erase_if(requests_,[&](const Request& request) { return !request.validation && request.generation!=generation; });
+    std::erase_if(requests_,[&](const Request& request) { return !request.validation && !request.operation && request.generation!=generation; });
 }
 std::vector<LoadResult> DirectoryLoader::poll() {
     std::lock_guard lock(mutex_);
@@ -132,6 +145,10 @@ void DirectoryLoader::run(std::stop_token stop) {
             std::unique_lock lock(mutex_);
             if (!wake_.wait(lock,stop,[&] { return !requests_.empty(); })) return;
             request=std::move(requests_.front()); requests_.pop_front();
+        }
+        if (request.operation) {
+            auto result=perform_file_operation(std::move(*request.operation),stop);
+            std::lock_guard lock(mutex_); operations_.push_back(std::move(result)); continue;
         }
         if (request.validation) {
             PathValidation validation;

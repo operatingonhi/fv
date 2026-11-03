@@ -136,6 +136,44 @@ Launch argv directly without a shell, close inherited descriptors and poll child
 status without waiting. Distinguish successful status notices from actual launch
 failures. Normal Esc cancels transient state and does not quit.
 
+## File operations
+
+Explicit file actions support one selected regular file, directory or symlink.
+Synthetic groups must be expanded to select a real member. Cut records the
+source path and cached device/inode/change-time identity in an internal session
+clipboard; it does not alter the filesystem. Paste moves that entry into the current real
+directory. Ctrl+X/Ctrl+V, Ctrl+M and Delete mirror the sidebar controls and must
+not intercept editing shortcuts in text fields. Esc clears a pending cut or
+cancels a confirmation, without cancelling an operation already in progress.
+
+Move asks for an existing destination directory; names are retained. Delete asks
+for explicit confirmation of the captured source and permanently removes it,
+recursively for directories. There is no Trash or undo. Symlinks, including
+broken links, are moved/unlinked without traversing their targets. Root paths,
+special files, stale/replaced sources and directory-into-descendant moves are
+refused. Existing destination names, including dangling symlinks, are never
+replaced; Linux renameat2 with RENAME_NOREPLACE enforces that at publication.
+
+The existing single filesystem worker performs mutations alongside reads and
+path validation. Cross-filesystem moves stage a private complete copy, verify
+that source metadata/tree membership has not changed, publish without replacement
+and only then remove the source. Copies preserve permissions, modification times
+and link target text; ownership, ACLs, extended attributes and hard-link topology
+are not preserved. Concurrent external writers remain a limit; this is not a
+filesystem transaction. Copy failures retain the source. Partial deletion or
+source-removal failures report errors and identify any complete destination copy.
+Successful moves or deletion of the cut source clear the matching clipboard;
+failures retain it.
+
+Navigation actions wait while a mutation is running; camera rendering stays
+responsive. Confirmations bind a captured source rather than a mutable selection.
+Results invalidate obsolete worker reads and cached history worlds, refresh the
+current real directory and previews, and preserve surviving layout anchors and
+the camera/grid frame. Active groups return to their real directory before
+regrouping. Explicit refreshes prune removed entries; ordinary preview/full-read
+disappearance still retains an error entry. No automatic filesystem watcher is
+introduced.
+
 ## Demonstration and recording
 
 The C++ tour creates a fresh disposable real-filesystem fixture and drives normal
@@ -162,8 +200,9 @@ tools as normal application build dependencies.
 
 ## Limits and future work
 
-No destructive file operations, watcher/automatic refresh, filesystem-wide
-index, Unicode-normalized search, persistent settings/usage learning, user theme
+No Trash/undo, multi-selection, external file clipboard, watcher/automatic refresh,
+filesystem-wide index, Unicode-normalized search, persistent settings/usage
+learning, user theme
 system or `LS_COLORS` integration exists. These are future work, not requirements
 to implement during maintenance. Keep future behavior local and transparent.
 Analysis/merging still run on the main thread after worker reads and may pause

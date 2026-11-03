@@ -12,6 +12,12 @@ using EntryId=std::size_t;
 using EntryMap=std::unordered_map<EntryId,EntryId>;
 inline constexpr EntryId root_id=0;
 enum class EntryKind { Directory, File, Symlink, Other };
+struct FileIdentity {
+    std::uintmax_t device=0,inode=0;
+    bool known=false;
+    std::int64_t changed_seconds=0,changed_nanoseconds=0;
+    bool operator==(const FileIdentity&) const=default;
+};
 struct Entry {
     EntryId id=0, parent=0;
     std::string name;
@@ -22,6 +28,7 @@ struct Entry {
     bool size_known=false, modified_known=true, hidden=false, broken_link=false;
     std::filesystem::perms permissions=std::filesystem::perms::unknown;
     std::string full_path{}, link_target{}, error{};
+    FileIdentity identity{};
 };
 struct DirectoryListing {
     Entry directory;
@@ -34,6 +41,7 @@ struct DirectoryState {
     LoadState state=LoadState::Unloaded;
     bool loading=false;
     std::string message;
+    bool remove_missing=false;
 };
 // Main-thread metadata cache. This class performs no filesystem I/O.
 class Filesystem {
@@ -47,6 +55,8 @@ public:
     const DirectoryState& state(EntryId id) const { return states_.at(id); }
     void mark_loading(EntryId id) { states_.at(id).loading=true; }
     void clear_loading() { for (auto& state:states_) state.loading=false; }
+    // Explicit user changes require fresh listings; retain IDs and layout anchors.
+    void invalidate();
     void apply(EntryId directory,DirectoryListing listing);
     // Copy cached metadata only; preserve destination identity and return ID mapping.
     EntryMap copy_subtree(EntryId source,Filesystem& destination,EntryId target) const;

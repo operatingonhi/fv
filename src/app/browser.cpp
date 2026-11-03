@@ -85,6 +85,7 @@ void Browser::refresh_scene() {
 }
 void Browser::sync_view() {
     layout=hierarchy.node(current_).world;
+    if (navigation.context().page!=layout.page) navigation.restore_page(layout.page);
     if (navigation.context().group) {
         std::vector<EntryId> members;
         for (const auto& item:hierarchy.node(current_).items)
@@ -98,6 +99,7 @@ void Browser::focus_overview() {
     camera.focus(hierarchy.focus(current_),animations,24*scale,scale,hierarchy.node(current_).transform.translation.y);
 }
 void Browser::update(float seconds) {
+    if (loader_) for (auto& result:loader_->poll_operations()) process_file_result(std::move(result));
     for (const auto& error:launcher_.poll()) notice=desktop_launch_error_=error;
     if (loader_) for (auto& result:loader_->poll_validations()) process_validation(std::move(result));
     bool changed=false;
@@ -238,7 +240,12 @@ void Browser::next_match(bool reverse) {
     select(next%page_size,true);
 }
 void Browser::act(UiAction action) {
+    if (file_busy_ && action.kind!=ActionKind::None) { notice="File operation in progress; please wait"; return; }
+    if (file_prompt_ && action.kind!=ActionKind::ConfirmFileOperation && action.kind!=ActionKind::CancelFileOperation &&
+        action.kind!=ActionKind::Cancel && action.kind!=ActionKind::None) return;
     switch (action.kind) {
+    case ActionKind::Cut: case ActionKind::Paste: case ActionKind::MoveFile: case ActionKind::DeleteFile:
+    case ActionKind::ConfirmFileOperation: case ActionKind::CancelFileOperation: file_action(std::move(action)); break;
     case ActionKind::None: return;
     case ActionKind::Focus: select(action.index,true); break;
     case ActionKind::Select: select(action.index,false); break;
@@ -310,6 +317,8 @@ void Browser::act(UiAction action) {
     case ActionKind::Forward: go_history(1); break;
     case ActionKind::Terminal: terminal_here(); break;
     case ActionKind::Cancel:
+        if (file_prompt_) { file_prompt_.reset(); break; }
+        cut_file_.reset();
         pending_parent_.reset();
         std::erase_if(validations_,[](const auto& entry) { return entry.second.purpose!=Purpose::Surroundings; }); location_tag_=0;
         notice.clear(); query_.text.clear(); query_dirty_=true; refresh_scene(); break;

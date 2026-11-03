@@ -67,7 +67,7 @@ void Browser::enter_rebased(NodeId child,EntryId directory,bool remember_parent)
     auto context=cached_parent(directory);
     const ParentReturn back{history.current().state,directory,frame};
     if (remember_parent) save_view();
-    stash_world(); world_=std::make_shared<World>();
+    stash_world(); world_=std::make_shared<World>(); world_->file_epoch=file_epoch_;
     grid_=next_grid;
     filesystem=std::move(next_filesystem); hierarchy=std::move(next_hierarchy);
     surroundings_=std::move(context); if (remember_parent) parent_return_=back;
@@ -120,7 +120,7 @@ void Browser::try_ascend() {
     hierarchy.copy_branch(0,next_hierarchy,child,current_entries);
     const auto incoming=in_frame(camera.state(),next_hierarchy.node(child).transform);
     const auto next_grid=transform_grid(grid_,next_hierarchy.node(child).transform.translation,next_hierarchy.node(child).transform.scale);
-    save_view(); stash_world(); world_=std::make_shared<World>();
+    save_view(); stash_world(); world_=std::make_shared<World>(); world_->file_epoch=file_epoch_;
     grid_=next_grid;
     filesystem=std::move(next_filesystem); hierarchy=std::move(next_hierarchy);
     current_=0; parents_.clear(); navigation=Navigation{}; world_path_=path;
